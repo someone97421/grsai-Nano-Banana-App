@@ -453,6 +453,29 @@
             text-overflow: ellipsis;
         }
 
+        .history-params {
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            right: 2px;
+            font-size: 8px;
+            color: rgba(255, 255, 255, 0.95);
+            background: rgba(0, 0, 0, 0.5);
+            padding: 2px 4px;
+            border-radius: 3px;
+            text-align: center;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            z-index: 5;
+        }
+
+        .history-item:hover .history-params {
+            opacity: 1;
+        }
+
         /* 图片预览模态框 */
         .image-modal {
             position: fixed;
@@ -1243,7 +1266,7 @@
 
         // IndexedDB 相关
         const DB_NAME = 'GrsaiNanoBananaDB';
-        const DB_VERSION = 1;
+        const DB_VERSION = 2;
         const STORE_NAME = 'history';
         let db = null;
 
@@ -1332,7 +1355,7 @@
             });
         }
 
-        function addHistoryItem(imageData, prompt) {
+        function addHistoryItem(imageData, prompt, aspectRatio, imageSize, imageFiles) {
             return new Promise((resolve, reject) => {
                 if (!db) {
                     reject(new Error('Database not initialized'));
@@ -1345,6 +1368,9 @@
                 const item = {
                     imageData: imageData,
                     prompt: prompt,
+                    aspectRatio: aspectRatio,
+                    imageSize: imageSize,
+                    imageFiles: imageFiles, // 存储参考图的Base64数组
                     timestamp: Date.now()
                 };
 
@@ -1441,12 +1467,27 @@
                     return;
                 }
 
-                container.innerHTML = history.map(item => `
-                    <div class="history-item">
+                container.innerHTML = history.map(item => {
+                    // 构建参数标签
+                    const paramTags = [];
+                    if (item.aspectRatio && item.aspectRatio !== 'auto') paramTags.push(`比例:${item.aspectRatio}`);
+                    if (item.imageSize) paramTags.push(`分辨率:${item.imageSize}`);
+                    if (item.imageFiles && item.imageFiles.length > 0) paramTags.push(`参考图:${item.imageFiles.length}张`);
+                    const paramText = paramTags.length > 0 ? paramTags.join(' | ') : '默认参数';
+                    
+                    return `
+                    <div class="history-item" data-id="${item.id}">
                         <img src="${item.imageData}" alt="Generated" loading="lazy">
+                        <div class="history-params" title="${escapeHtml(paramText)}">${escapeHtml(paramText)}</div>
                         <div class="history-overlay">
                             <button class="history-btn" onclick="openImageModal('${item.imageData}')" title="放大预览">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7"/></svg>
+                            </button>
+                            <button class="history-btn" onclick="reuseHistoryParams(${item.id})" title="复用参数">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                            </button>
+                            <button class="history-btn" onclick="copyHistoryPrompt(${item.id})" title="复制提示词">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
                             </button>
                             <button class="history-btn" onclick="downloadHistoryImage(${item.id})" title="下载">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
@@ -1457,7 +1498,7 @@
                         </div>
                         <div class="history-time">${formatTime(item.timestamp)}</div>
                     </div>
-                `).join('');
+                `}).join('');
             } catch (error) {
                 console.error('Failed to load history:', error);
             }
@@ -1488,6 +1529,109 @@
                 }
             } catch (error) {
                 console.error('Failed to download:', error);
+            }
+        }
+
+        // 复用历史记录的参数
+        async function reuseHistoryParams(id) {
+            try {
+                const history = await getAllHistory();
+                const item = history.find(h => h.id === id);
+                if (!item) {
+                    showMessage('未找到历史记录', 'error');
+                    return;
+                }
+
+                // 恢复提示词（保留@引用格式）
+                document.getElementById('prompt').innerHTML = '';
+                if (item.prompt) {
+                    // 解析提示词，将【imageX】转换回@imgX引用标签
+                    const promptHtml = parsePromptWithMentions(item.prompt);
+                    document.getElementById('prompt').innerHTML = promptHtml;
+                }
+
+                // 恢复宽高比
+                if (item.aspectRatio) {
+                    document.getElementById('aspectRatio').value = item.aspectRatio;
+                }
+
+                // 恢复分辨率
+                if (item.imageSize) {
+                    document.getElementById('imageSize').value = item.imageSize;
+                }
+
+                // 恢复参考图
+                imageFiles.length = 0;
+                if (item.imageFiles && item.imageFiles.length > 0) {
+                    // 将Base64转换回File对象
+                    for (let i = 0; i < item.imageFiles.length; i++) {
+                        const base64 = item.imageFiles[i];
+                        try {
+                            const file = await base64ToFile(base64, `ref-image-${i}.png`);
+                            imageFiles.push(file);
+                        } catch (e) {
+                            console.error('Failed to restore image:', e);
+                        }
+                    }
+                    renderImageGrid();
+                    updateMentionPopupList();
+                } else {
+                    renderImageGrid();
+                }
+
+                showMessage('参数已复用', 'success');
+                
+                // 滚动到输入区域
+                document.querySelector('.glass-panel').scrollIntoView({ behavior: 'smooth', block: 'start' });
+            } catch (error) {
+                console.error('Failed to reuse params:', error);
+                showMessage('复用参数失败', 'error');
+            }
+        }
+
+        // 复制历史记录的提示词
+        async function copyHistoryPrompt(id) {
+            try {
+                const history = await getAllHistory();
+                const item = history.find(h => h.id === id);
+                if (!item || !item.prompt) {
+                    showMessage('未找到提示词', 'error');
+                    return;
+                }
+
+                // 将【imageX】格式转换为@imgX格式，便于复用
+                const copyText = item.prompt.replace(/【image(\d+)】/g, '@img$1');
+                
+                await navigator.clipboard.writeText(copyText);
+                showMessage('提示词已复制到剪贴板', 'success');
+            } catch (error) {
+                console.error('Failed to copy prompt:', error);
+                showMessage('复制提示词失败', 'error');
+            }
+        }
+
+        // 将提示词解析为HTML，包含mention标签
+        function parsePromptWithMentions(prompt) {
+            if (!prompt) return '';
+            
+            // 将【imageX】转换为mention标签
+            return prompt.replace(/【image(\d+)】/g, (match, num) => {
+                const index = parseInt(num) - 1;
+                return `<span class="mention-chip" contenteditable="false" data-index="${index}" onclick="editExistingMention(event, this)">@img${num} <svg style="width:12px;height:12px;margin-left:2px" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg></span>&nbsp;`;
+            });
+        }
+
+        // 将Base64转换为File对象
+        async function base64ToFile(base64, filename) {
+            const response = await fetch(base64);
+            const blob = await response.blob();
+            return new File([blob], filename, { type: blob.type || 'image/png' });
+        }
+
+        // 更新mention弹出列表
+        function updateMentionPopupList() {
+            if (isMentionPopupOpen) {
+                renderMentionList();
             }
         }
 
@@ -2609,7 +2753,22 @@
                 }
 
                 if (imageData) {
-                    await addHistoryItem(imageData, task.prompt);
+                    // 将参考图转换为Base64存储
+                    const imageFilesBase64 = [];
+                    if (task.images && task.images.length > 0) {
+                        for (const file of task.images) {
+                            const base64 = await fileToBase64(file);
+                            imageFilesBase64.push(base64);
+                        }
+                    }
+                    
+                    await addHistoryItem(
+                        imageData, 
+                        task.prompt, 
+                        task.aspectRatio, 
+                        task.imageSize, 
+                        imageFilesBase64
+                    );
                     await loadHistory();
                 }
             } catch (error) {
