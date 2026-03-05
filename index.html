@@ -1010,12 +1010,12 @@
                                 <div class="grid grid-cols-2 gap-4">
                                     <div>
                                         <label class="text-xs mb-1 block" style="color: var(--text-muted);">最大并发数</label>
-                                        <input type="number" id="maxConcurrency" value="3" min="1" max="10"
+                                        <input type="number" id="maxConcurrency" value="5" min="1" max="10"
                                             class="w-full px-3 py-2 rounded-lg text-sm form-input">
                                     </div>
                                     <div>
                                         <label class="text-xs mb-1 block" style="color: var(--text-muted);">轮询间隔 (秒)</label>
-                                        <input type="number" id="pollInterval" value="5" min="2" max="30"
+                                        <input type="number" id="pollInterval" value="8" min="2" max="30"
                                             step="1" class="w-full px-3 py-2 rounded-lg text-sm form-input">
                                     </div>
                                 </div>
@@ -2740,12 +2740,22 @@
                 document.getElementById('taskContainer').parentNode.appendChild(debugPanel);
             }
             
+            // 构建调试内容
+            let debugContent = JSON.stringify(debugInfo, null, 2);
+            
+            // 如果任务完成或失败且有返回结果，显示完整的API响应数据
+            if (task.result && (task.status === 'completed' || task.status === 'failed')) {
+                const title = task.status === 'completed' ? 'API 成功响应数据' : 'API 失败响应数据';
+                debugContent += `\n\n/* ========== ${title} ========== */\n\n`;
+                debugContent += JSON.stringify(task.result, null, 2);
+            }
+            
             debugPanel.innerHTML = `
                 <div class="task-debug-header">
                     <span>任务调试信息</span>
                     <button onclick="closeTaskDebugPanel()" style="background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 14px;">✕</button>
                 </div>
-                <div class="task-debug-content">${JSON.stringify(debugInfo, null, 2)}</div>
+                <div class="task-debug-content">${debugContent}</div>
             `;
         }
 
