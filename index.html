@@ -5,8 +5,9 @@
     <link rel="icon" href="favicon.png" type="image/png">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Grsai-🍌图像生成器</title>
+    <title>GrsAI 图像生成器</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jszip@3/dist/jszip.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -197,6 +198,42 @@
             content: attr(data-placeholder);
             color: var(--text-muted);
             pointer-events: none;
+        }
+
+        .model-tabs {
+            display: inline-flex;
+            gap: 8px;
+            padding: 4px;
+            border-radius: 9999px;
+            background: var(--bg-input);
+            border: 1px solid var(--border-color);
+        }
+
+        .model-tab {
+            border: none;
+            border-radius: 9999px;
+            padding: 8px 14px;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            background: transparent;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .model-tab:hover {
+            color: var(--text-primary);
+            background: rgba(148, 163, 184, 0.12);
+        }
+
+        .model-tab.active {
+            color: white;
+            background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
+            box-shadow: 0 8px 18px -10px rgba(59, 130, 246, 0.75);
+        }
+
+        .hidden-param {
+            display: none;
         }
 
         /* 交互式引用标签 (Chip) */
@@ -451,29 +488,6 @@
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
-        }
-
-        .history-params {
-            position: absolute;
-            top: 2px;
-            left: 2px;
-            right: 2px;
-            font-size: 8px;
-            color: rgba(255, 255, 255, 0.95);
-            background: rgba(0, 0, 0, 0.5);
-            padding: 2px 4px;
-            border-radius: 3px;
-            text-align: center;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            opacity: 0;
-            transition: opacity 0.3s ease;
-            z-index: 5;
-        }
-
-        .history-item:hover .history-params {
-            opacity: 1;
         }
 
         /* 图片预览模态框 */
@@ -811,6 +825,192 @@
         input:checked+.toggle-slider:before {
             transform: translateX(20px);
         }
+
+        /* 裁图工具样式 */
+        .crop-tool-drawer {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.5s ease-out, opacity 0.3s ease;
+            opacity: 0;
+        }
+
+        .crop-tool-drawer.open {
+            max-height: 2000px;
+            opacity: 1;
+        }
+
+        .grid-option-btn {
+            padding: 6px 16px;
+            border-radius: 8px;
+            border: 1px solid var(--border-input);
+            background: var(--bg-input);
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 13px;
+            font-weight: 500;
+        }
+
+        .grid-option-btn:hover {
+            background: var(--btn-secondary-hover);
+        }
+
+        .grid-option-btn.active {
+            background: var(--accent-blue);
+            color: white;
+            border-color: var(--accent-blue);
+        }
+
+        .crop-preview-wrapper {
+            position: relative;
+            display: inline-block;
+            max-width: 100%;
+            border-radius: 12px;
+            overflow: hidden;
+            background: var(--bg-input);
+        }
+
+        .crop-preview-wrapper canvas {
+            display: block;
+            max-width: 100%;
+            height: auto;
+            border-radius: 12px;
+        }
+
+        .crop-result-grid {
+            display: grid;
+            gap: 12px;
+        }
+
+        .crop-piece {
+            position: relative;
+            border-radius: 10px;
+            overflow: hidden;
+            border: 1px solid var(--border-color);
+            background: var(--slot-bg);
+            transition: all 0.3s ease;
+            cursor: pointer;
+            aspect-ratio: auto;
+        }
+
+        .crop-piece:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+            border-color: var(--accent-blue);
+        }
+
+        .crop-piece img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+
+        .crop-piece-overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.5);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .crop-piece:hover .crop-piece-overlay {
+            opacity: 1;
+        }
+
+        .crop-piece-btn {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(4px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            transition: all 0.2s;
+            border: none;
+            cursor: pointer;
+        }
+
+        .crop-piece-btn:hover {
+            background: rgba(255, 255, 255, 0.35);
+            transform: scale(1.1);
+        }
+
+        .crop-piece-label {
+            position: absolute;
+            top: 4px;
+            left: 4px;
+            background: var(--accent-blue);
+            color: white;
+            font-size: 10px;
+            font-weight: 600;
+            padding: 1px 6px;
+            border-radius: 4px;
+            font-family: monospace;
+            pointer-events: none;
+            z-index: 5;
+        }
+
+        .crop-history-picker {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.85);
+            z-index: 9998;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .crop-history-picker.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .crop-history-picker-content {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 24px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 70vh;
+            overflow-y: auto;
+        }
+
+        .crop-history-picker-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+        }
+
+        .crop-history-picker-item {
+            aspect-ratio: 1;
+            border-radius: 10px;
+            overflow: hidden;
+            cursor: pointer;
+            border: 2px solid transparent;
+            transition: all 0.2s;
+        }
+
+        .crop-history-picker-item:hover {
+            border-color: var(--accent-blue);
+            transform: scale(1.05);
+        }
+
+        .crop-history-picker-item img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
     </style>
 </head>
 
@@ -831,10 +1031,8 @@
         <div class="text-center space-y-2 mb-6">
             <h1
                 class="text-3xl md:text-4xl font-bold bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
-                Grsai-🍌图像生成器
+                GrsAI 图像生成器
             </h1>
-            <p class="text-slate-400 text-sm" style="color: var(--text-secondary);">支持 Nano-banana 系列多图参考生成 |
-                输入 @ 引用图像</p>
         </div>
 
         <!-- 第一排：设置区（可关闭抽屉） -->
@@ -942,24 +1140,38 @@
                                     </svg>
                                     导出
                                 </button>
+                                <button onclick="resetConfig()"
+                                    class="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5"
+                                    style="background: rgba(239, 68, 68, 0.2); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3);">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                    </svg>
+                                    恢复默认
+                                </button>
                                 <input type="file" id="configFile" accept=".json" onchange="importConfig(event)">
                             </div>
                         </div>
                         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <div class="space-y-2">
+                                <label class="text-sm font-medium" style="color: var(--text-secondary);">接入点</label>
+                                <select id="endpointSelector" onchange="onEndpointChange(); saveConfig();" class="w-full px-4 py-2 rounded-lg text-sm form-select">
+                                    <option value="custom">自定义</option>
+                                    <option value="https://grsai.dakka.com.cn">国内直连</option>
+                                    <option value="https://api.grsai.com">海外节点</option>
+                                    <option value="https://grsaiapi.com">海外节点 (备选)</option>
+                                    <option value="https://grsai.com">海外节点 (备选2)</option>
+                                </select>
+                            </div>
+                            <div class="space-y-2">
                                 <label class="text-sm font-medium" style="color: var(--text-secondary);">API Base
                                     URL</label>
-                                <input type="text" id="baseUrl" value="https://grsai.dakka.com.cn"
+                                <input type="text" id="baseUrl" value="https://grsai.dakka.com.cn" onchange="saveConfig()"
                                     class="w-full px-4 py-2 rounded-lg text-sm form-input">
                             </div>
                             <div class="space-y-2">
                                 <label class="text-sm font-medium" style="color: var(--text-secondary);">API Key</label>
-                                <input type="password" id="apiKey"
-                                    class="w-full px-4 py-2 rounded-lg text-sm form-input">
-                            </div>
-                            <div class="space-y-2">
-                                <label class="text-sm font-medium" style="color: var(--text-secondary);">模型名称</label>
-                                <input type="text" id="modelName" value="nano-banana-2"
+                                <input type="password" id="apiKey" onchange="saveConfig()"
                                     class="w-full px-4 py-2 rounded-lg text-sm form-input">
                             </div>
                         </div>
@@ -984,7 +1196,7 @@
                                     <div class="flex-1">
                                         <label class="text-xs mb-1 block"
                                             style="color: var(--text-muted);">最大保存数量</label>
-                                        <input type="number" id="historyLimit" value="20" min="5" max="100"
+                                        <input type="number" id="historyLimit" value="20" min="5" max="100" onchange="saveConfig()"
                                             class="w-full px-3 py-2 rounded-lg text-sm form-input">
                                     </div>
                                     <button onclick="clearHistory()"
@@ -1006,7 +1218,7 @@
                                     <div class="flex items-center justify-between">
                                         <label class="text-sm" style="color: var(--text-secondary);">启用图片压缩</label>
                                         <label class="toggle-switch">
-                                            <input type="checkbox" id="enableCompression" checked>
+                                            <input type="checkbox" id="enableCompression" onchange="saveConfig()">
                                             <span class="toggle-slider"></span>
                                         </label>
                                     </div>
@@ -1014,14 +1226,14 @@
                                         <div>
                                             <label class="text-xs mb-1 block" style="color: var(--text-muted);">长边限制
                                                 (px)</label>
-                                            <input type="number" id="maxEdgeLength" value="2560" min="512" max="8192"
+                                            <input type="number" id="maxEdgeLength" value="2752" min="512" max="8192" onchange="saveConfig()"
                                                 class="w-full px-3 py-2 rounded-lg text-sm form-input">
                                         </div>
                                         <div>
                                             <label class="text-xs mb-1 block" style="color: var(--text-muted);">JPEG 质量
                                                 (0-1)</label>
-                                            <input type="number" id="jpegQuality" value="0.9" min="0.1" max="1"
-                                                step="0.1" class="w-full px-3 py-2 rounded-lg text-sm form-input">
+                                            <input type="number" id="jpegQuality" value="1" min="0.1" max="1"
+                                                step="0.1" onchange="saveConfig()" class="w-full px-3 py-2 rounded-lg text-sm form-input">
                                         </div>
                                     </div>
                                 </div>
@@ -1033,13 +1245,13 @@
                                 <div class="grid grid-cols-2 gap-4">
                                     <div>
                                         <label class="text-xs mb-1 block" style="color: var(--text-muted);">最大并发数</label>
-                                        <input type="number" id="maxConcurrency" value="5" min="1" max="10"
+                                        <input type="number" id="maxConcurrency" value="3" min="1" max="10" onchange="saveConfig()"
                                             class="w-full px-3 py-2 rounded-lg text-sm form-input">
                                     </div>
                                     <div>
                                         <label class="text-xs mb-1 block" style="color: var(--text-muted);">轮询间隔 (秒)</label>
                                         <input type="number" id="pollInterval" value="8" min="2" max="30"
-                                            step="1" class="w-full px-3 py-2 rounded-lg text-sm form-input">
+                                            step="1" onchange="saveConfig()" class="w-full px-3 py-2 rounded-lg text-sm form-input">
                                     </div>
                                 </div>
                                 <p class="text-xs mt-2" style="color: var(--text-muted);">设置同时处理的最大任务数和轮询间隔</p>
@@ -1078,17 +1290,23 @@
 
             <!-- 右侧：提示词输入区 -->
             <div class="glass-panel rounded-2xl p-5">
-                <div class="flex justify-between items-center mb-4">
-                    <h2 class="text-lg font-semibold flex items-center gap-2">
-                        <svg class="w-5 h-5" style="color: var(--accent-purple);" fill="none" stroke="currentColor"
-                            viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                        </svg>
-                        提示词
-                    </h2>
-                    <span class="text-xs px-2 py-1 rounded"
-                        style="background: var(--bg-input); color: var(--text-muted);">输入 @ 引用图片</span>
+                <div class="flex flex-col gap-4 mb-4">
+                    <div class="flex items-center justify-between gap-3 flex-wrap">
+                        <h2 class="text-lg font-semibold flex items-center gap-2">
+                            <svg class="w-5 h-5" style="color: var(--accent-purple);" fill="none" stroke="currentColor"
+                                viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            </svg>
+                            提示词与参数
+                        </h2>
+                        <div class="model-tabs" role="tablist" aria-label="模型切换">
+                            <button type="button" id="tab-nano-banana" class="model-tab active" role="tab"
+                                aria-selected="true" onclick="setActiveProvider('nano-banana')">Nano Banana</button>
+                            <button type="button" id="tab-gpt-image-2" class="model-tab" role="tab"
+                                aria-selected="false" onclick="setActiveProvider('gpt-image-2')">GPT Image 2</button>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="textarea-wrapper">
@@ -1111,33 +1329,31 @@
                     </div>
                 </div>
 
-                <!-- 生图参数：宽高比和分辨率 -->
+                <!-- 生图参数：按模型切换 -->
                 <div class="grid grid-cols-2 gap-3 mt-4">
                     <div class="space-y-1">
-                        <label class="text-xs font-medium" style="color: var(--text-muted);">宽高比</label>
-                        <select id="aspectRatio" class="w-full px-3 py-2 rounded-lg text-sm outline-none form-select">
-                            <option value="auto">auto (自动)</option>
-                            <option value="1:1">1:1 (正方形)</option>
-                            <option value="2:3">2:3 (纵向)</option>
-                            <option value="3:2">3:2 (横向)</option>
-                            <option value="3:4">3:4 (纵向)</option>
-                            <option value="4:3">4:3 (横向)</option>
-                            <option value="4:5">4:5 (纵向)</option>
-                            <option value="5:4">5:4 (横向)</option>
-                            <option value="9:16">9:16 (手机竖屏)</option>
-                            <option value="16:9">16:9 (宽屏)</option>
-                            <option value="21:9">21:9 (超宽屏)</option>
-                        </select>
+                        <label class="text-xs font-medium" style="color: var(--text-muted);" id="aspectRatioLabel">宽高比</label>
+                        <select id="aspectRatio" class="w-full px-3 py-2 rounded-lg text-sm outline-none form-select"></select>
                     </div>
-                    <div class="space-y-1">
-                        <label class="text-xs font-medium" style="color: var(--text-muted);">分辨率</label>
-                        <select id="imageSize" class="w-full px-3 py-2 rounded-lg text-sm outline-none form-select">
-                            <option value="">默认 (Auto)</option>
-                            <option value="1K">1K </option>
-                            <option value="2K">2K </option>
-                            <option value="4K">4K </option>
-                        </select>
+                    <div class="space-y-1" id="secondaryParamGroup">
+                        <label class="text-xs font-medium" style="color: var(--text-muted);" id="secondaryParamLabel">分辨率</label>
+                        <select id="resolution" class="w-full px-3 py-2 rounded-lg text-sm outline-none form-select"></select>
                     </div>
+                </div>
+
+                <!-- Nano Banana 专属参数 -->
+                <div id="nanoBananaParams" class="space-y-1 mt-3">
+                    <label class="text-xs font-medium" style="color: var(--text-muted);">模型版本</label>
+                    <select id="nanoBananaModel" onchange="saveConfig()" class="w-full px-3 py-2 rounded-lg text-sm outline-none form-select">
+                        <option value="nano-banana-fast">Nano Banana Fast</option>
+                        <option value="nano-banana">Nano Banana</option>
+                        <option value="nano-banana-pro">Nano Banana Pro</option>
+                        <option value="nano-banana-pro-vt">Nano Banana Pro VT</option>
+                        <option value="nano-banana-pro-cl">Nano Banana Pro CL</option>
+                        <option value="nano-banana-2" selected>Nano Banana 2</option>
+                        <option value="nano-banana-2-cl">Nano Banana 2 CL</option>
+                        <option value="nano-banana-2-cl-4k">Nano Banana 2 CL 4K</option>
+                    </select>
                 </div>
 
                 <button onclick="generateImage()" id="generateBtn"
@@ -1170,6 +1386,13 @@
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                 d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
+                        </svg>
+                    </button>
+                    <button onclick="sendResultToCrop()" class="result-zoom-btn" title="裁切图片"
+                        style="background: var(--accent-purple);">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                         </svg>
                     </button>
                     <a id="downloadLink" href="#" target="_blank" download
@@ -1243,6 +1466,183 @@
                 </div>
             </div>
         </div>
+
+        <!-- 裁图工具板块 -->
+        <div class="glass-panel rounded-2xl overflow-hidden">
+            <button onclick="toggleCropTool()"
+                class="w-full px-6 py-4 flex items-center justify-between hover:bg-opacity-50 transition-colors"
+                style="background: rgba(128,128,128,0.05);">
+                <div class="flex items-center gap-3">
+                    <svg class="w-5 h-5" style="color: var(--accent-purple);" fill="none" stroke="currentColor"
+                        viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    <span class="text-lg font-semibold">裁图工具</span>
+                    <span class="text-xs px-2 py-1 rounded"
+                        style="background: var(--bg-input); color: var(--text-muted);">网格切割 | 批量下载</span>
+                </div>
+                <svg id="cropDrawerIcon" class="w-6 h-6 drawer-toggle" style="color: var(--text-secondary);"
+                    fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                </svg>
+            </button>
+
+            <div id="cropToolDrawer" class="crop-tool-drawer">
+                <div class="p-6 space-y-5 border-t" style="border-color: var(--border-color);">
+
+                    <!-- 图片来源 -->
+                    <div>
+                        <h3 class="text-sm font-semibold mb-3 flex items-center gap-2"
+                            style="color: var(--text-secondary);">
+                            <svg class="w-4 h-4" style="color: var(--accent-blue);" fill="none" stroke="currentColor"
+                                viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                            </svg>
+                            选择图片
+                        </h3>
+                        <div class="flex flex-wrap gap-3">
+                            <button onclick="document.getElementById('cropFileInput').click()"
+                                class="px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+                                style="background: var(--btn-secondary); color: var(--text-primary); border: 1px solid var(--border-input);">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                                </svg>
+                                上传图片
+                            </button>
+                            <input type="file" id="cropFileInput" accept="image/*" style="display:none;"
+                                onchange="handleCropFileUpload(event)">
+                            <button onclick="sendResultToCrop()"
+                                class="px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+                                style="background: var(--btn-secondary); color: var(--text-primary); border: 1px solid var(--border-input);">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                </svg>
+                                使用当前结果图
+                            </button>
+                            <button onclick="openHistoryPickerForCrop()"
+                                class="px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+                                style="background: var(--btn-secondary); color: var(--text-primary); border: 1px solid var(--border-input);">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                从历史记录选择
+                            </button>
+                        </div>
+                        <!-- 拖拽/粘贴上传区 -->
+                        <div id="cropDropZone"
+                            class="mt-3 border-2 border-dashed rounded-xl p-6 text-center transition-all cursor-pointer"
+                            style="border-color: var(--border-input); background: var(--slot-bg); color: var(--text-muted);"
+                            onclick="document.getElementById('cropFileInput').click()">
+                            <svg class="w-8 h-8 mx-auto mb-2 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                            </svg>
+                            <p class="text-sm">拖拽图片到此处，或按 <kbd style="background: var(--bg-input); padding: 1px 6px; border-radius: 4px; border: 1px solid var(--border-input); font-size: 12px;">Ctrl+V</kbd> 粘贴</p>
+                        </div>
+                    </div>
+
+                    <!-- 网格选择 -->
+                    <div>
+                        <h3 class="text-sm font-semibold mb-3 flex items-center gap-2"
+                            style="color: var(--text-secondary);">
+                            <svg class="w-4 h-4" style="color: var(--accent-green);" fill="none" stroke="currentColor"
+                                viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+                            </svg>
+                            网格模式
+                        </h3>
+                        <div class="flex flex-wrap gap-3" id="cropGridOptions">
+                            <button class="grid-option-btn active" onclick="setCropGrid(3, 3)">3 × 3</button>
+                            <button class="grid-option-btn" onclick="setCropGrid(2, 2)">2 × 2</button>
+                            <button class="grid-option-btn" onclick="setCropGrid(1, 4)">1 × 4</button>
+                            <button class="grid-option-btn" onclick="setCropGrid(4, 1)">4 × 1</button>
+                            <button class="grid-option-btn" onclick="setCropGrid(2, 3)">2 × 3</button>
+                            <button class="grid-option-btn" onclick="setCropGrid(3, 2)">3 × 2</button>
+                            <button class="grid-option-btn" onclick="setCropGrid(4, 4)">4 × 4</button>
+                            <button class="grid-option-btn" onclick="setCropGrid(5, 5)">5 × 5</button>
+                        </div>
+                    </div>
+
+                    <!-- 预览区 -->
+                    <div id="cropPreviewArea" class="hidden">
+                        <h3 class="text-sm font-semibold mb-3 flex items-center gap-2"
+                            style="color: var(--text-secondary);">
+                            <svg class="w-4 h-4" style="color: var(--accent-purple);" fill="none" stroke="currentColor"
+                                viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                            </svg>
+                            预览
+                        </h3>
+                        <div class="flex justify-center">
+                            <div class="crop-preview-wrapper">
+                                <canvas id="cropCanvas"></canvas>
+                            </div>
+                        </div>
+                        <div class="flex justify-center mt-4">
+                            <button onclick="executeCrop()"
+                                class="px-8 py-2.5 rounded-xl font-semibold text-sm shadow-lg transition-all transform hover:scale-[1.02] active:scale-[0.98] flex items-center gap-2"
+                                style="background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple)); color: white;">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M14.121 14.121L19 19m-7-7l7-7m-7 7l-2.879 2.879M12 12L9.121 9.121m0 5.758a3 3 0 10-4.243 4.243 3 3 0 004.243-4.243zm0-5.758a3 3 0 10-4.243-4.243 3 3 0 004.243 4.243z" />
+                                </svg>
+                                开始切割
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- 切割结果 -->
+                    <div id="cropResultArea" class="hidden">
+                        <div class="flex justify-between items-center mb-3">
+                            <h3 class="text-sm font-semibold flex items-center gap-2"
+                                style="color: var(--text-secondary);">
+                                <svg class="w-4 h-4" style="color: var(--accent-green);" fill="none"
+                                    stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M5 13l4 4L19 7" />
+                                </svg>
+                                切割结果
+                            </h3>
+                            <button onclick="downloadAllCropPieces()"
+                                class="px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+                                style="background: var(--accent-blue); color: white;">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                </svg>
+                                打包下载全部
+                            </button>
+                        </div>
+                        <div id="cropResultGrid" class="crop-result-grid"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 历史图片选择弹窗 (用于裁切工具) -->
+        <div id="cropHistoryPicker" class="crop-history-picker" onclick="closeCropHistoryPicker(event)">
+            <div class="crop-history-picker-content" onclick="event.stopPropagation()">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-lg font-semibold" style="color: var(--text-primary);">选择历史图片</h3>
+                    <button onclick="closeCropHistoryPicker()" class="text-sm px-3 py-1 rounded-lg"
+                        style="background: var(--btn-secondary); color: var(--text-secondary);">关闭</button>
+                </div>
+                <div id="cropHistoryPickerGrid" class="crop-history-picker-grid">
+                    <div class="text-center py-8 text-sm" style="color: var(--text-muted); grid-column: 1 / -1;">暂无历史记录</div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -1257,6 +1657,75 @@
         let savedRange = null;
         let isSettingsDrawerOpen = false;
         let currentTheme = 'dark';
+        let activeProvider = 'nano-banana';
+
+        const MODEL_PROFILES = {
+            'nano-banana': {
+                id: 'nano-banana',
+                tabId: 'tab-nano-banana',
+                label: 'Nano Banana',
+                requestType: 'json',
+                aspectRatioLabel: '宽高比',
+                aspectRatioOptions: [
+                    { value: '', label: '默认 (Auto)' },
+                    { value: '1:1', label: '1:1 (正方形)' },
+                    { value: '16:9', label: '16:9 (宽屏)' },
+                    { value: '9:16', label: '9:16 (手机竖屏)' },
+                    { value: '4:3', label: '4:3 (横向)' },
+                    { value: '3:4', label: '3:4 (纵向)' },
+                    { value: '3:2', label: '3:2 (横向)' },
+                    { value: '2:3', label: '2:3 (纵向)' },
+                    { value: '5:4', label: '5:4 (横向)' },
+                    { value: '4:5', label: '4:5 (纵向)' },
+                    { value: '21:9', label: '21:9 (超宽屏)' }
+                ],
+                secondaryParamKey: 'imageSize',
+                secondaryParamLabel: '尺寸',
+                secondaryOptions: [
+                    { value: '', label: '默认 (Auto)' },
+                    { value: '1K', label: '1K' },
+                    { value: '2K', label: '2K' },
+                    { value: '4K', label: '4K' }
+                ],
+                showSecondaryParam: true,
+                promptPlaceholder: '描述你想要生成的图像内容... 例如：让 @img1 的人物站在 @img2 的场景中',
+                modelVariants: [
+                    { value: 'nano-banana-fast', label: 'Nano Banana Fast' },
+                    { value: 'nano-banana', label: 'Nano Banana' },
+                    { value: 'nano-banana-pro', label: 'Nano Banana Pro' },
+                    { value: 'nano-banana-pro-vt', label: 'Nano Banana Pro VT' },
+                    { value: 'nano-banana-pro-cl', label: 'Nano Banana Pro CL' },
+                    { value: 'nano-banana-2', label: 'Nano Banana 2' },
+                    { value: 'nano-banana-2-cl', label: 'Nano Banana 2 CL' },
+                    { value: 'nano-banana-2-cl-4k', label: 'Nano Banana 2 CL 4K' }
+                ],
+                defaultModelVariant: 'nano-banana-2'
+            },
+            'gpt-image-2': {
+                id: 'gpt-image-2',
+                tabId: 'tab-gpt-image-2',
+                label: 'GPT Image 2',
+                model: 'gpt-image-2',
+                requestType: 'json',
+                aspectRatioLabel: '宽高比',
+                aspectRatioOptions: [
+                    { value: '', label: '默认 (Auto)' },
+                    { value: '1:1', label: '1:1 (正方形)' },
+                    { value: '3:2', label: '3:2 (横向)' },
+                    { value: '2:3', label: '2:3 (纵向)' }
+                ],
+                secondaryParamKey: 'size',
+                secondaryParamLabel: '尺寸',
+                secondaryOptions: [
+                    { value: '', label: '默认 (Auto)' },
+                    { value: '1024x1024', label: '1024x1024' },
+                    { value: '1536x1024', label: '1536x1024' },
+                    { value: '1024x1536', label: '1024x1536' }
+                ],
+                showSecondaryParam: false,
+                promptPlaceholder: '描述你想要生成的图像内容... 例如：参考 @img1 的主体和 @img2 的配色，生成一张新图'
+            }
+        };
         
         // 任务队列管理
         let taskQueue = []; // 等待执行的任务
@@ -1265,9 +1734,9 @@
         let taskIdCounter = 0; // 本地任务ID计数器
 
         // IndexedDB 相关
-        const DB_NAME = 'GrsaiNanoBananaDB';
-        const DB_VERSION = 2;
-        const STORE_NAME = 'history';
+        const DB_NAME = 'GrsAINanoV2DB';
+        const DB_VERSION = 1;
+        const STORE_NAME = 'grsaiHistory';
         let db = null;
 
         document.addEventListener('DOMContentLoaded', () => {
@@ -1281,9 +1750,107 @@
             });
         });
 
+        function getActiveProfile() {
+            return MODEL_PROFILES[activeProvider] || MODEL_PROFILES['nano-banana'];
+        }
+
+        function getProviderSettings(providerId) {
+            const profile = MODEL_PROFILES[providerId] || MODEL_PROFILES['nano-banana'];
+            const config = {
+                aspectRatio: ''
+            };
+            config[profile.secondaryParamKey] = '';
+            if (profile.id === 'nano-banana') {
+                config.modelVariant = profile.defaultModelVariant;
+            }
+            return config;
+        }
+
+        function buildSelectOptions(selectEl, options, selectedValue = '') {
+            if (!selectEl) return;
+            selectEl.innerHTML = options.map(option =>
+                `<option value="${option.value}">${option.label}</option>`
+            ).join('');
+            selectEl.value = selectedValue;
+            if (selectEl.value !== selectedValue) {
+                selectEl.value = options[0]?.value || '';
+            }
+        }
+
+        function collectProviderSettings() {
+            const profile = getActiveProfile();
+            const settings = {
+                aspectRatio: document.getElementById('aspectRatio').value,
+                [profile.secondaryParamKey]: document.getElementById('resolution').value
+            };
+            if (profile.id === 'nano-banana') {
+                settings.modelVariant = document.getElementById('nanoBananaModel').value;
+            }
+            return settings;
+        }
+
+        function applyProviderSettings(providerId, settings = {}) {
+            const profile = MODEL_PROFILES[providerId] || MODEL_PROFILES['nano-banana'];
+            const normalized = {
+                aspectRatio: settings.aspectRatio || '',
+                [profile.secondaryParamKey]: settings[profile.secondaryParamKey] || ''
+            };
+
+            document.getElementById('aspectRatioLabel').textContent = profile.aspectRatioLabel;
+            document.getElementById('secondaryParamLabel').textContent = profile.secondaryParamLabel;
+
+            const aspectRatioSelect = document.getElementById('aspectRatio');
+            const resolutionSelect = document.getElementById('resolution');
+            buildSelectOptions(aspectRatioSelect, profile.aspectRatioOptions, normalized.aspectRatio);
+            buildSelectOptions(resolutionSelect, profile.secondaryOptions, normalized[profile.secondaryParamKey]);
+            aspectRatioSelect.onchange = saveConfig;
+            resolutionSelect.onchange = saveConfig;
+            document.getElementById('secondaryParamGroup').classList.toggle('hidden-param', !profile.showSecondaryParam);
+
+            // Nano Banana 专属参数显隐
+            const nanoBananaParams = document.getElementById('nanoBananaParams');
+            if (nanoBananaParams) {
+                nanoBananaParams.classList.toggle('hidden-param', profile.id !== 'nano-banana');
+            }
+            if (profile.id === 'nano-banana') {
+                const modelVariant = settings.modelVariant || profile.defaultModelVariant;
+                const modelSelect = document.getElementById('nanoBananaModel');
+                if (modelSelect) modelSelect.value = modelVariant;
+            }
+
+            const promptEditor = document.getElementById('prompt');
+            if (promptEditor) {
+                promptEditor.dataset.placeholder = profile.promptPlaceholder;
+            }
+
+            Object.values(MODEL_PROFILES).forEach(item => {
+                const button = document.getElementById(item.tabId);
+                if (!button) return;
+                const isActive = item.id === providerId;
+                button.classList.toggle('active', isActive);
+                button.setAttribute('aria-selected', isActive ? 'true' : 'false');
+            });
+        }
+
+        function setActiveProvider(providerId, options = {}) {
+            if (!MODEL_PROFILES[providerId]) return;
+
+            const shouldPreserveCurrent = options.preserveCurrent !== false;
+            const providerSettings = options.providerSettings || {};
+
+            if (shouldPreserveCurrent && MODEL_PROFILES[activeProvider]) {
+                providerSettings[activeProvider] = collectProviderSettings();
+            }
+
+            activeProvider = providerId;
+            const nextSettings = providerSettings[providerId] || getProviderSettings(providerId);
+            applyProviderSettings(providerId, nextSettings);
+            saveConfig();
+        }
+
         // ==================== 主题管理 ====================
         function initTheme() {
-            const savedTheme = localStorage.getItem('grsai-nano-banana-theme') || 'dark';
+            const savedTheme = localStorage.getItem('grsaiNanoV2Theme') || 'dark';
             setTheme(savedTheme, false);
 
             // 监听系统主题变化
@@ -1304,7 +1871,7 @@
             document.getElementById(`theme-${theme}`)?.classList.add('active');
 
             if (save) {
-                localStorage.setItem('grsai-nano-banana-theme', theme);
+                localStorage.setItem('grsaiNanoV2Theme', theme);
             }
 
             if (theme === 'auto') {
@@ -1355,31 +1922,58 @@
             });
         }
 
-        function addHistoryItem(imageData, prompt, aspectRatio, imageSize, imageFiles) {
+        function addHistoryItem(imageData, prompt) {
             return new Promise((resolve, reject) => {
                 if (!db) {
                     reject(new Error('Database not initialized'));
                     return;
                 }
 
-                const transaction = db.transaction([STORE_NAME], 'readwrite');
-                const store = transaction.objectStore(STORE_NAME);
-
-                const item = {
-                    imageData: imageData,
-                    prompt: prompt,
-                    aspectRatio: aspectRatio,
-                    imageSize: imageSize,
-                    imageFiles: imageFiles, // 存储参考图的Base64数组
-                    timestamp: Date.now()
-                };
-
-                const request = store.add(item);
-                request.onsuccess = () => {
-                    cleanupOldHistory().then(() => resolve(request.result));
-                };
-                request.onerror = () => reject(request.error);
+                // 保存参考图片数据（只保存有图片的槽位）
+                const referenceImages = [];
+                imageFiles.forEach((file, index) => {
+                    if (file) {
+                        // 将 File 对象转换为 Base64 以便存储
+                        const reader = new FileReader();
+                        reader.readAsDataURL(file);
+                        reader.onloadend = () => {
+                            referenceImages.push({
+                                index: index,
+                                dataUrl: reader.result,
+                                name: file.name || `image${index + 1}`
+                            });
+                            
+                            // 当所有图片都转换完成后添加到历史记录
+                            if (referenceImages.length === imageFiles.filter(f => f !== null).length) {
+                                saveToHistory(imageData, prompt, referenceImages, resolve, reject);
+                            }
+                        };
+                    }
+                });
+                
+                // 如果没有参考图，直接保存
+                if (imageFiles.filter(f => f !== null).length === 0) {
+                    saveToHistory(imageData, prompt, [], resolve, reject);
+                }
             });
+        }
+
+        function saveToHistory(imageData, prompt, referenceImages, resolve, reject) {
+            const transaction = db.transaction([STORE_NAME], 'readwrite');
+            const store = transaction.objectStore(STORE_NAME);
+
+            const item = {
+                imageData: imageData,
+                prompt: prompt,
+                referenceImages: referenceImages,
+                timestamp: Date.now()
+            };
+
+            const request = store.add(item);
+            request.onsuccess = () => {
+                cleanupOldHistory().then(() => resolve(request.result));
+            };
+            request.onerror = () => reject(request.error);
         }
 
         function getAllHistory() {
@@ -1467,27 +2061,15 @@
                     return;
                 }
 
-                container.innerHTML = history.map(item => {
-                    // 构建参数标签
-                    const paramTags = [];
-                    if (item.aspectRatio && item.aspectRatio !== 'auto') paramTags.push(`比例:${item.aspectRatio}`);
-                    if (item.imageSize) paramTags.push(`分辨率:${item.imageSize}`);
-                    if (item.imageFiles && item.imageFiles.length > 0) paramTags.push(`参考图:${item.imageFiles.length}张`);
-                    const paramText = paramTags.length > 0 ? paramTags.join(' | ') : '默认参数';
-                    
-                    return `
-                    <div class="history-item" data-id="${item.id}">
+                container.innerHTML = history.map(item => `
+                    <div class="history-item">
                         <img src="${item.imageData}" alt="Generated" loading="lazy">
-                        <div class="history-params" title="${escapeHtml(paramText)}">${escapeHtml(paramText)}</div>
                         <div class="history-overlay">
+                            <button class="history-btn" onclick="reusePrompt(${item.id})" title="复用提示词">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2"/></svg>
+                            </button>
                             <button class="history-btn" onclick="openImageModal('${item.imageData}')" title="放大预览">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7"/></svg>
-                            </button>
-                            <button class="history-btn" onclick="reuseHistoryParams(${item.id})" title="复用参数">
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
-                            </button>
-                            <button class="history-btn" onclick="copyHistoryPrompt(${item.id})" title="复制提示词">
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
                             </button>
                             <button class="history-btn" onclick="downloadHistoryImage(${item.id})" title="下载">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
@@ -1498,7 +2080,7 @@
                         </div>
                         <div class="history-time">${formatTime(item.timestamp)}</div>
                     </div>
-                `}).join('');
+                `).join('');
             } catch (error) {
                 console.error('Failed to load history:', error);
             }
@@ -1532,109 +2114,6 @@
             }
         }
 
-        // 复用历史记录的参数
-        async function reuseHistoryParams(id) {
-            try {
-                const history = await getAllHistory();
-                const item = history.find(h => h.id === id);
-                if (!item) {
-                    showMessage('未找到历史记录', 'error');
-                    return;
-                }
-
-                // 恢复提示词（保留@引用格式）
-                document.getElementById('prompt').innerHTML = '';
-                if (item.prompt) {
-                    // 解析提示词，将【imageX】转换回@imgX引用标签
-                    const promptHtml = parsePromptWithMentions(item.prompt);
-                    document.getElementById('prompt').innerHTML = promptHtml;
-                }
-
-                // 恢复宽高比
-                if (item.aspectRatio) {
-                    document.getElementById('aspectRatio').value = item.aspectRatio;
-                }
-
-                // 恢复分辨率
-                if (item.imageSize) {
-                    document.getElementById('imageSize').value = item.imageSize;
-                }
-
-                // 恢复参考图
-                imageFiles.length = 0;
-                if (item.imageFiles && item.imageFiles.length > 0) {
-                    // 将Base64转换回File对象
-                    for (let i = 0; i < item.imageFiles.length; i++) {
-                        const base64 = item.imageFiles[i];
-                        try {
-                            const file = await base64ToFile(base64, `ref-image-${i}.png`);
-                            imageFiles.push(file);
-                        } catch (e) {
-                            console.error('Failed to restore image:', e);
-                        }
-                    }
-                    renderImageGrid();
-                    updateMentionPopupList();
-                } else {
-                    renderImageGrid();
-                }
-
-                showMessage('参数已复用', 'success');
-                
-                // 滚动到输入区域
-                document.querySelector('.glass-panel').scrollIntoView({ behavior: 'smooth', block: 'start' });
-            } catch (error) {
-                console.error('Failed to reuse params:', error);
-                showMessage('复用参数失败', 'error');
-            }
-        }
-
-        // 复制历史记录的提示词
-        async function copyHistoryPrompt(id) {
-            try {
-                const history = await getAllHistory();
-                const item = history.find(h => h.id === id);
-                if (!item || !item.prompt) {
-                    showMessage('未找到提示词', 'error');
-                    return;
-                }
-
-                // 将【imageX】格式转换为@imgX格式，便于复用
-                const copyText = item.prompt.replace(/【image(\d+)】/g, '@img$1');
-                
-                await navigator.clipboard.writeText(copyText);
-                showMessage('提示词已复制到剪贴板', 'success');
-            } catch (error) {
-                console.error('Failed to copy prompt:', error);
-                showMessage('复制提示词失败', 'error');
-            }
-        }
-
-        // 将提示词解析为HTML，包含mention标签
-        function parsePromptWithMentions(prompt) {
-            if (!prompt) return '';
-            
-            // 将【imageX】转换为mention标签
-            return prompt.replace(/【image(\d+)】/g, (match, num) => {
-                const index = parseInt(num) - 1;
-                return `<span class="mention-chip" contenteditable="false" data-index="${index}" onclick="editExistingMention(event, this)">@img${num} <svg style="width:12px;height:12px;margin-left:2px" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg></span>&nbsp;`;
-            });
-        }
-
-        // 将Base64转换为File对象
-        async function base64ToFile(base64, filename) {
-            const response = await fetch(base64);
-            const blob = await response.blob();
-            return new File([blob], filename, { type: blob.type || 'image/png' });
-        }
-
-        // 更新mention弹出列表
-        function updateMentionPopupList() {
-            if (isMentionPopupOpen) {
-                renderMentionList();
-            }
-        }
-
         async function clearHistory() {
             if (!confirm('确定要清除所有历史记录吗？此操作不可恢复。')) return;
 
@@ -1645,6 +2124,122 @@
             } catch (error) {
                 showMessage('清除历史记录失败', 'error');
             }
+        }
+
+        // 辅助函数：将【imageX】格式的文本转换回 mention chip HTML
+        function parsePromptWithMentions(promptText) {
+            if (!promptText) return '';
+            
+            // 使用正则表达式匹配【image数字】格式
+            const mentionRegex = /【image(\d+)】/g;
+            let result = '';
+            let lastIndex = 0;
+            let match;
+            
+            while ((match = mentionRegex.exec(promptText)) !== null) {
+                // 添加匹配前的文本
+                result += escapeHtml(promptText.slice(lastIndex, match.index));
+                
+                const imgIndex = parseInt(match[1]) - 1; // 转换为 0-based 索引
+                const chipInner = `@img${match[1]} <svg style="width:12px;height:12px;margin-left:2px" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>`;
+                
+                // 创建 chip HTML
+                result += `<span class="mention-chip" contenteditable="false" data-index="${imgIndex}" onclick="editExistingMention(event, this)">${chipInner}</span>&nbsp;`;
+                
+                lastIndex = match.index + match[0].length;
+            }
+            
+            // 添加剩余文本
+            result += escapeHtml(promptText.slice(lastIndex));
+            
+            return result;
+        }
+
+        // ==================== 复用提示词功能 ====================
+        async function reusePrompt(id) {
+            try {
+                const history = await getAllHistory();
+                const item = history.find(h => h.id === id);
+                
+                if (!item) {
+                    showMessage('未找到历史记录', 'error');
+                    return;
+                }
+
+                // 确认是否要复用（特别是当已有参考图时）
+                const hasExistingImages = imageFiles.filter(f => f !== null).length > 0;
+                const hasReferenceImages = item.referenceImages && item.referenceImages.length > 0;
+                
+                if (hasExistingImages) {
+                    const confirmMsg = hasReferenceImages 
+                        ? '这将替换当前的参考图片和提示词，确定要继续吗？'
+                        : '这将替换当前的提示词，确定要继续吗？';
+                    
+                    if (!confirm(confirmMsg)) {
+                        return;
+                    }
+                }
+
+                // 1. 恢复提示词（将【imageX】格式转换为 mention chip）
+                if (item.prompt) {
+                    const promptEditor = document.getElementById('prompt');
+                    promptEditor.innerHTML = parsePromptWithMentions(item.prompt);
+                }
+
+                // 2. 恢复参考图片
+                if (item.referenceImages && item.referenceImages.length > 0) {
+                    // 清空当前所有参考图
+                    imageFiles.fill(null);
+                    
+                    // 按照原始索引位置恢复图片
+                    for (const refImg of item.referenceImages) {
+                        try {
+                            // 将 Base64 转换回 File 对象
+                            const file = await dataURLToFile(refImg.dataUrl, refImg.name || `image${refImg.index + 1}`);
+                            imageFiles[refImg.index] = file;
+                        } catch (err) {
+                            console.error(`Failed to restore image at index ${refImg.index}:`, err);
+                        }
+                    }
+                    
+                    // 重新渲染图片网格
+                    renderImageGrid();
+                }
+
+                // 滚动到提示词区域
+                const promptEditor = document.getElementById('prompt');
+                promptEditor.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+                // 添加视觉反馈
+                promptEditor.classList.add('focus:ring-2');
+                setTimeout(() => {
+                    promptEditor.classList.remove('focus:ring-2');
+                }, 1000);
+
+                // 显示成功消息
+                const imgCount = (item.referenceImages ? item.referenceImages.length : 0);
+                const msg = imgCount > 0 
+                    ? `已复用提示词和 ${imgCount} 张参考图` 
+                    : `已复用提示词`;
+                showMessage(msg, 'success');
+
+            } catch (error) {
+                console.error('Failed to reuse prompt:', error);
+                showMessage('复用失败：' + error.message, 'error');
+            }
+        }
+
+        // 辅助函数：将 Data URL 转换为 File 对象
+        function dataURLToFile(dataurl, filename) {
+            return new Promise((resolve, reject) => {
+                fetch(dataurl)
+                    .then(response => response.blob())
+                    .then(blob => {
+                        const file = new File([blob], filename, { type: blob.type });
+                        resolve(file);
+                    })
+                    .catch(error => reject(error));
+            });
         }
 
         // ==================== 图片预览模态框 ====================
@@ -2368,14 +2963,30 @@
             });
         }
 
+        // 全局接入点选择
+        function onEndpointChange() {
+            const selector = document.getElementById('endpointSelector');
+            const baseUrlInput = document.getElementById('baseUrl');
+            const value = selector.value;
+            if (value !== 'custom') {
+                baseUrlInput.value = value;
+            }
+        }
+
         // API 配置管理
-        function saveConfig() {
-            const config = {
+        function buildConfigPayload() {
+            const providerSettings = {
+                'nano-banana': getProviderSettings('nano-banana'),
+                'gpt-image-2': getProviderSettings('gpt-image-2')
+            };
+            providerSettings[activeProvider] = collectProviderSettings();
+
+            return {
                 baseUrl: document.getElementById('baseUrl').value,
                 apiKey: document.getElementById('apiKey').value,
-                modelName: document.getElementById('modelName').value,
-                aspectRatio: document.getElementById('aspectRatio').value,
-                imageSize: document.getElementById('imageSize').value,
+                endpoint: document.getElementById('endpointSelector').value,
+                activeProvider,
+                providerSettings,
                 historyLimit: document.getElementById('historyLimit').value,
                 enableCompression: document.getElementById('enableCompression').checked,
                 maxEdgeLength: document.getElementById('maxEdgeLength').value,
@@ -2384,54 +2995,92 @@
                 pollInterval: document.getElementById('pollInterval').value,
                 timestamp: new Date().toISOString()
             };
-            localStorage.setItem('grsai-nano-banana-config', JSON.stringify(config));
-            showMessage('配置已保存到本地存储', 'success');
+        }
+
+        function saveConfig() {
+            const config = buildConfigPayload();
+            localStorage.setItem('grsaiNanoV2Config', JSON.stringify(config));
+        }
+
+        function resetConfig() {
+            if (!confirm('确定要恢复默认配置吗？当前所有设置将被重置。')) return;
+            localStorage.removeItem('grsaiNanoV2Config');
+            localStorage.removeItem('grsaiNanoV2Theme');
+            location.reload();
         }
 
         function loadSavedConfig() {
-            const saved = localStorage.getItem('grsai-nano-banana-config');
+            const saved = localStorage.getItem('grsaiNanoV2Config');
+            let config = null;
+
             if (saved) {
                 try {
-                    const config = JSON.parse(saved);
-                    document.getElementById('baseUrl').value = config.baseUrl || 'https://grsaiapi.com';
-                    document.getElementById('apiKey').value = config.apiKey || '';
-                    document.getElementById('modelName').value = config.modelName || 'nano-banana-2';
-                    if (config.aspectRatio !== undefined) {
-                        document.getElementById('aspectRatio').value = config.aspectRatio;
-                    }
-                    if (config.imageSize !== undefined) {
-                        document.getElementById('imageSize').value = config.imageSize;
-                    }
-                    if (config.resolution !== undefined) {
-                        document.getElementById('imageSize').value = config.resolution;
-                    }
-                    document.getElementById('historyLimit').value = config.historyLimit || '20';
-                    document.getElementById('enableCompression').checked = config.enableCompression !== false;
-                    document.getElementById('maxEdgeLength').value = config.maxEdgeLength || '2560';
-                    document.getElementById('jpegQuality').value = config.jpegQuality || '0.9';
-                    document.getElementById('maxConcurrency').value = config.maxConcurrency || '3';
-                    document.getElementById('pollInterval').value = config.pollInterval || '5';
+                    config = JSON.parse(saved);
                 } catch (e) {
                     console.error('Failed to load config:', e);
                 }
             }
+
+            const defaultBaseUrl = 'https://grsai.dakka.com.cn';
+            const baseUrl = config?.baseUrl || defaultBaseUrl;
+            document.getElementById('baseUrl').value = baseUrl;
+            document.getElementById('apiKey').value = config?.apiKey || '';
+            document.getElementById('historyLimit').value = config?.historyLimit || '20';
+            document.getElementById('enableCompression').checked = config?.enableCompression === true;
+            document.getElementById('maxEdgeLength').value = config?.maxEdgeLength || '2560';
+            document.getElementById('jpegQuality').value = config?.jpegQuality || '0.9';
+            document.getElementById('maxConcurrency').value = config?.maxConcurrency || '3';
+            document.getElementById('pollInterval').value = config?.pollInterval || '8';
+
+            // 全局接入点选择器同步
+            const endpointSelector = document.getElementById('endpointSelector');
+            if (config?.endpoint && config.endpoint !== 'custom') {
+                endpointSelector.value = config.endpoint;
+            } else if ([defaultBaseUrl, 'https://api.grsai.com', 'https://grsaiapi.com', 'https://grsai.com'].includes(baseUrl)) {
+                endpointSelector.value = baseUrl;
+            } else {
+                endpointSelector.value = 'custom';
+            }
+
+            // 兼容旧配置映射
+            let migratedProvider = config?.activeProvider;
+            if (migratedProvider === 'gemini' || migratedProvider === 'nano-banana-2' || migratedProvider === 'nano-banana-pro') {
+                migratedProvider = 'nano-banana';
+            } else if (!MODEL_PROFILES[migratedProvider]) {
+                migratedProvider = 'nano-banana';
+            }
+
+            const providerSettings = {
+                'nano-banana': {
+                    ...getProviderSettings('nano-banana'),
+                    ...(config?.providerSettings?.['nano-banana'] || {}),
+                    // 兼容更旧的 flat config 和拆分配置
+                    ...(config?.providerSettings?.['nano-banana-2'] || {}),
+                    ...(config?.providerSettings?.['nano-banana-pro'] || {})
+                },
+                'gpt-image-2': {
+                    ...getProviderSettings('gpt-image-2'),
+                    ...(config?.providerSettings?.['gpt-image-2'] || {})
+                }
+            };
+
+            // 旧配置字段迁移（扁平配置）
+            if (!config?.providerSettings && config?.aspectRatio !== undefined) {
+                providerSettings['nano-banana'].aspectRatio = config.aspectRatio || '';
+                providerSettings['gpt-image-2'].aspectRatio = config.aspectRatio || '';
+            }
+            if (!config?.providerSettings && (config?.resolution !== undefined || config?.imageSize !== undefined)) {
+                providerSettings['nano-banana'].imageSize = config.imageSize || config.resolution || '';
+            }
+
+            setActiveProvider(migratedProvider, {
+                preserveCurrent: false,
+                providerSettings
+            });
         }
 
         function exportConfig() {
-            const config = {
-                baseUrl: document.getElementById('baseUrl').value,
-                apiKey: document.getElementById('apiKey').value,
-                modelName: document.getElementById('modelName').value,
-                aspectRatio: document.getElementById('aspectRatio').value,
-                imageSize: document.getElementById('imageSize').value,
-                historyLimit: document.getElementById('historyLimit').value,
-                enableCompression: document.getElementById('enableCompression').checked,
-                maxEdgeLength: document.getElementById('maxEdgeLength').value,
-                jpegQuality: document.getElementById('jpegQuality').value,
-                maxConcurrency: document.getElementById('maxConcurrency').value,
-                pollInterval: document.getElementById('pollInterval').value,
-                timestamp: new Date().toISOString()
-            };
+            const config = buildConfigPayload();
             const blob = new Blob([JSON.stringify(config, null, 2)], { type: 'application/json' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
@@ -2450,24 +3099,8 @@
             reader.onload = (e) => {
                 try {
                     const config = JSON.parse(e.target.result);
-                    document.getElementById('baseUrl').value = config.baseUrl || 'https://grsaiapi.com';
-                    document.getElementById('apiKey').value = config.apiKey || '';
-                    document.getElementById('modelName').value = config.modelName || 'nano-banana-2';
-                    if (config.aspectRatio !== undefined) {
-                        document.getElementById('aspectRatio').value = config.aspectRatio;
-                    }
-                    if (config.imageSize !== undefined) {
-                        document.getElementById('imageSize').value = config.imageSize;
-                    }
-                    if (config.resolution !== undefined) {
-                        document.getElementById('imageSize').value = config.resolution;
-                    }
-                    document.getElementById('historyLimit').value = config.historyLimit || '20';
-                    document.getElementById('enableCompression').checked = config.enableCompression !== false;
-                    document.getElementById('maxEdgeLength').value = config.maxEdgeLength || '2560';
-                    document.getElementById('jpegQuality').value = config.jpegQuality || '0.9';
-                    document.getElementById('maxConcurrency').value = config.maxConcurrency || '3';
-                    document.getElementById('pollInterval').value = config.pollInterval || '5';
+                    localStorage.setItem('grsaiNanoV2Config', JSON.stringify(config));
+                    loadSavedConfig();
                     saveConfig();
                     showMessage('配置已导入并保存', 'success');
                 } catch (err) {
@@ -2481,18 +3114,24 @@
         // ==================== 任务队列管理 ====================
         
         // 创建新任务
-        function createTask(baseUrl, apiKey, model, prompt, aspectRatio, imageSize, validImages) {
+        function createTask(baseUrl, apiKey, providerId, prompt, params, validImages) {
             taskIdCounter++;
             const localTaskId = `local-${Date.now()}-${taskIdCounter}`;
+            const profile = MODEL_PROFILES[providerId] || MODEL_PROFILES['nano-banana'];
+            
+            let model = profile.model;
+            if (profile.id === 'nano-banana' && params?.modelVariant) {
+                model = params.modelVariant;
+            }
             
             const task = {
                 id: localTaskId,
                 baseUrl,
                 apiKey,
+                providerId,
                 model,
                 prompt,
-                aspectRatio,
-                imageSize,
+                params,
                 images: validImages,
                 status: 'pending', // pending, submitting, polling, completed, failed
                 serverTaskId: null,
@@ -2542,59 +3181,26 @@
 
         // 执行单个任务
         async function executeTask(task) {
-            // 将参考图转换为Base64
-            const imageUrls = [];
-            if (task.images && task.images.length > 0) {
-                for (const file of task.images) {
-                    const base64 = await fileToBase64(file);
-                    imageUrls.push(base64);
-                }
+            const profile = MODEL_PROFILES[task.providerId] || MODEL_PROFILES['nano-banana'];
+            let currentImages = [...task.images];
+            let response, data;
+
+            if (task.providerId === 'nano-banana') {
+                response = await submitNanoBananaTask(task, currentImages);
+            } else if (task.providerId === 'gpt-image-2') {
+                response = await submitGptImageTask(task, currentImages);
+            } else {
+                throw new Error('未知的 provider: ' + task.providerId);
             }
 
-            // 构建请求体
-            const requestBody = {
-                model: task.model,
-                prompt: task.prompt,
-                aspectRatio: task.aspectRatio || 'auto',
-                imageSize: task.imageSize || '1K',
-                shutProgress: false,
-                webHook: "-1"  // 设置为-1立即返回id，用于轮询
-            };
+            data = await parseResponseJson(response, task);
 
-            // 只有有参考图时才添加urls字段
-            if (imageUrls.length > 0) {
-                requestBody.urls = imageUrls;
-            }
-
-            const url = `${task.baseUrl}/v1/draw/nano-banana`;
-
-            const response = await fetch(url, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${task.apiKey}`
-                },
-                body: JSON.stringify(requestBody)
-            });
-
-            // 获取原始响应文本用于调试
-            const responseText = await response.text();
-            
-            // 尝试解析JSON
-            let data;
-            try {
-                data = JSON.parse(responseText);
-            } catch (parseError) {
-                console.error('JSON解析错误，原始响应:', responseText);
-                throw new Error(`服务器返回非JSON格式: ${responseText.substring(0, 200)}`);
-            }
-
-            if (!response.ok || data.code !== 0) {
-                throw new Error(data.msg || data.error?.message || `HTTP ${response.status}: ${response.statusText}`);
+            if (!response.ok) {
+                throw new Error(data.error?.message || `HTTP ${response.status}: ${response.statusText}`);
             }
 
             // 获取服务端任务ID并开始轮询
-            const serverTaskId = data.data?.id;
+            const serverTaskId = data.id || data.data?.id || data.data?.task_id || data.task_id || data.data;
             if (!serverTaskId) {
                 throw new Error('未能获取任务ID');
             }
@@ -2607,81 +3213,181 @@
             startPolling(task);
         }
 
-        // 将文件转换为Base64
-        function fileToBase64(file) {
-            return new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                reader.onload = () => resolve(reader.result);
-                reader.onerror = reject;
-                reader.readAsDataURL(file);
+        // 兼容 SSE / data: 前缀的 JSON 解析
+        async function parseResponseJson(response, task = null) {
+            const text = await response.text();
+            // 先保存原始响应，方便调试
+            if (task) {
+                task.rawResponse = text;
+            }
+
+            const lines = text.split(/\r?\n/);
+
+            // 1. 先尝试直接解析整个文本
+            try {
+                return JSON.parse(text.trim());
+            } catch (e) { /* 不是纯 JSON */ }
+
+            // 2. 收集所有 data: 行的内容
+            const dataLines = [];
+            for (const line of lines) {
+                const trimmed = line.trim();
+                if (trimmed.startsWith('data:')) {
+                    dataLines.push(trimmed.replace(/^data:\s*/, ''));
+                }
+            }
+
+            if (dataLines.length > 0) {
+                // 尝试拼接所有 data: 行
+                try {
+                    return JSON.parse(dataLines.join('\n'));
+                } catch (e) { /* 拼接后也不是 JSON */ }
+
+                // 逐行尝试解析，返回第一个成功的 JSON
+                for (const line of dataLines) {
+                    try {
+                        return JSON.parse(line);
+                    } catch (e) { /* 这一行不是 JSON */ }
+                }
+            }
+
+            // 3. 尝试从文本中提取第一个 JSON 对象/数组
+            const jsonMatch = text.match(/(\{[\s\S]*\}|\[[\s\S]*\])/);
+            if (jsonMatch) {
+                try {
+                    return JSON.parse(jsonMatch[1]);
+                } catch (e) { /* 也不对 */ }
+            }
+
+            const err = new Error(`解析响应失败: 无法识别返回格式`);
+            err.rawResponse = text;
+            throw err;
+        }
+
+        async function submitNanoBananaTask(task, currentImages) {
+            const payload = {
+                model: task.model,
+                prompt: task.prompt,
+                shutProgress: true,
+                cdn: 'zh',
+                webHook: '-1'
+            };
+
+            if (task.params?.aspectRatio) {
+                payload.aspectRatio = task.params.aspectRatio;
+            }
+            if (task.params?.imageSize) {
+                payload.imageSize = task.params.imageSize;
+            }
+
+            // 根据有无参考图自动切换文生图 / 图生图
+            if (currentImages.length > 0) {
+                payload.urls = await Promise.all(currentImages.map(file => blobToBase64(file)));
+            }
+
+            return fetch(`${task.baseUrl}/v1/draw/nano-banana`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${task.apiKey}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(payload)
+            });
+        }
+
+        async function submitGptImageTask(task, currentImages) {
+            const payload = {
+                model: task.model,
+                prompt: task.prompt,
+                shutProgress: true,
+                cdn: 'zh',
+                webHook: '-1'
+            };
+
+            // GrsAI GPT Image API 使用 size 字段传递比例
+            if (task.params?.aspectRatio) {
+                payload.size = task.params.aspectRatio;
+            }
+
+            // 根据有无参考图自动切换
+            if (currentImages.length > 0) {
+                payload.urls = await Promise.all(currentImages.map(file => blobToBase64(file)));
+            }
+
+            return fetch(`${task.baseUrl}/v1/draw/completions`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${task.apiKey}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(payload)
             });
         }
 
         // 开始轮询任务状态
         function startPolling(task) {
-            const pollInterval = (parseInt(document.getElementById('pollInterval').value) || 5) * 1000;
-            const maxAttempts = 120; // 最多轮询120次
-            
+            // Nano Banana 和 GPT Image 2 均使用 GrsAI /v1/draw/result 轮询
+            startNanoBananaPolling(task);
+        }
+
+        function startNanoBananaPolling(task) {
+            const pollInterval = (parseInt(document.getElementById('pollInterval').value) || 8) * 1000;
+            const maxAttempts = 120;
+
             const poll = async () => {
                 task.pollAttempts++;
-                
+
                 try {
                     const response = await fetch(`${task.baseUrl}/v1/draw/result`, {
                         method: 'POST',
                         headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${task.apiKey}`
+                            'Authorization': `Bearer ${task.apiKey}`,
+                            'Content-Type': 'application/json'
                         },
                         body: JSON.stringify({ id: task.serverTaskId })
                     });
 
-                    // 获取原始响应文本用于调试
-                    const responseText = await response.text();
-                    
-                    // 尝试解析JSON
-                    let data;
-                    try {
-                        data = JSON.parse(responseText);
-                    } catch (parseError) {
-                        console.error('轮询JSON解析错误，原始响应:', responseText);
-                        throw new Error(`服务器返回非JSON格式: ${responseText.substring(0, 200)}`);
+                    const data = await parseResponseJson(response, task);
+
+                    if (!response.ok) {
+                        throw new Error(data.error?.message || `查询任务失败: HTTP ${response.status}`);
                     }
 
-                    if (!response.ok || data.code !== 0) {
-                        throw new Error(data.msg || data.error?.message || `查询任务失败: HTTP ${response.status}`);
+                    // 兼容 {code, data, msg} 包装格式
+                    if (data.code !== undefined && data.code !== 0) {
+                        clearInterval(task.pollTimer);
+                        task.status = 'failed';
+                        task.error = data.msg || `服务端返回错误码: ${data.code}`;
+                        runningTaskCount--;
+                        updateTaskUI(task);
+                        processTaskQueue();
+                        return;
                     }
 
                     const taskData = data.data || data;
                     const status = taskData.status;
 
                     if (status === 'succeeded') {
-                        // 任务完成
                         clearInterval(task.pollTimer);
                         task.status = 'completed';
                         task.result = taskData;
-                        task.progress = taskData.progress || '100%';
+                        task.progress = '100%';
                         runningTaskCount--;
-                        
-                        // 显示结果并保存到历史记录
                         displayTaskResult(task);
                         await saveTaskResultToHistory(task);
                         updateTaskUI(task);
-                        
-                        // 尝试处理下一个任务
                         processTaskQueue();
-                        
+
                     } else if (status === 'failed') {
-                        // 任务失败
                         clearInterval(task.pollTimer);
                         task.status = 'failed';
-                        task.error = taskData.failure_reason || '任务生成失败';
+                        task.error = taskData.error || taskData.failure_reason || '任务生成失败';
                         runningTaskCount--;
                         updateTaskUI(task);
-                        processTaskQueue(); // 尝试处理下一个任务
-                        
-                    } else {
-                        // 任务处理中，更新进度
-                        task.progress = taskData.progress ? `${taskData.progress}%` : `${Math.min(Math.round(task.pollAttempts / maxAttempts * 100), 99)}%`;
+                        processTaskQueue();
+
+                    } else if (['processing', 'pending', 'running'].includes(status)) {
+                        task.progress = `${taskData.progress || Math.min(Math.round(task.pollAttempts / maxAttempts * 100), 99)}%`;
                         updateTaskUI(task);
                     }
 
@@ -2691,7 +3397,7 @@
                         task.error = '任务超时，请稍后在历史记录中查看结果';
                         runningTaskCount--;
                         updateTaskUI(task);
-                        processTaskQueue(); // 尝试处理下一个任务
+                        processTaskQueue();
                     }
                 } catch (error) {
                     clearInterval(task.pollTimer);
@@ -2699,12 +3405,83 @@
                     task.error = error.message;
                     runningTaskCount--;
                     updateTaskUI(task);
-                    processTaskQueue(); // 尝试处理下一个任务
+                    processTaskQueue();
                     console.error('Poll error:', error);
                 }
             };
 
-            // 立即执行一次，然后定期轮询
+            poll();
+            task.pollTimer = setInterval(poll, pollInterval);
+        }
+
+        function startGptImagePolling(task) {
+            const pollInterval = (parseInt(document.getElementById('pollInterval').value) || 8) * 1000;
+            const maxAttempts = 120;
+
+            const poll = async () => {
+                task.pollAttempts++;
+
+                try {
+                    const response = await fetch(`${task.baseUrl}/images/tasks/${task.serverTaskId}`, {
+                        method: 'GET',
+                        headers: {
+                            'Authorization': `Bearer ${task.apiKey}`,
+                            'Content-Type': 'application/json'
+                        }
+                    });
+
+                    const data = await parseResponseJson(response, task);
+
+                    if (!response.ok) {
+                        throw new Error(data.error?.message || `查询任务失败: HTTP ${response.status}`);
+                    }
+
+                    const taskData = data.data || data;
+                    const status = taskData.status;
+
+                    if (status === 'SUCCESS') {
+                        clearInterval(task.pollTimer);
+                        task.status = 'completed';
+                        task.result = taskData.data || data;
+                        task.progress = '100%';
+                        runningTaskCount--;
+                        displayTaskResult(task);
+                        await saveTaskResultToHistory(task);
+                        updateTaskUI(task);
+                        processTaskQueue();
+
+                    } else if (status === 'FAILURE') {
+                        clearInterval(task.pollTimer);
+                        task.status = 'failed';
+                        task.error = taskData.fail_reason || '任务生成失败';
+                        runningTaskCount--;
+                        updateTaskUI(task);
+                        processTaskQueue();
+
+                    } else if (status === 'IN_PROGRESS') {
+                        task.progress = `${taskData.progress || Math.min(Math.round(task.pollAttempts / maxAttempts * 100), 99)}%`;
+                        updateTaskUI(task);
+                    }
+
+                    if (task.pollAttempts >= maxAttempts) {
+                        clearInterval(task.pollTimer);
+                        task.status = 'failed';
+                        task.error = '任务超时，请稍后在历史记录中查看结果';
+                        runningTaskCount--;
+                        updateTaskUI(task);
+                        processTaskQueue();
+                    }
+                } catch (error) {
+                    clearInterval(task.pollTimer);
+                    task.status = 'failed';
+                    task.error = error.message;
+                    runningTaskCount--;
+                    updateTaskUI(task);
+                    processTaskQueue();
+                    console.error('Poll error:', error);
+                }
+            };
+
             poll();
             task.pollTimer = setInterval(poll, pollInterval);
         }
@@ -2715,13 +3492,13 @@
             const resultImage = document.getElementById('resultImage');
             const downloadLink = document.getElementById('downloadLink');
             const jsonResult = document.getElementById('jsonResult');
+            const imageSrc = extractImageSource(task.result);
 
             resultArea.classList.remove('hidden');
 
-            // 新的API响应格式: task.result.results[0].url
-            if (task.result && task.result.results && task.result.results[0] && task.result.results[0].url) {
-                resultImage.src = task.result.results[0].url;
-                downloadLink.href = task.result.results[0].url;
+            if (imageSrc) {
+                resultImage.src = imageSrc;
+                downloadLink.href = imageSrc;
                 downloadLink.download = `generated-${Date.now()}.png`;
                 if (jsonResult) jsonResult.classList.add('hidden');
             } else {
@@ -2738,37 +3515,22 @@
         // 保存任务结果到历史记录
         async function saveTaskResultToHistory(task) {
             try {
+                const imageSrc = extractImageSource(task.result);
                 let imageData = null;
 
-                // 新的API响应格式: task.result.results[0].url
-                if (task.result && task.result.results && task.result.results[0] && task.result.results[0].url) {
+                if (imageSrc) {
                     try {
-                        const response = await fetch(task.result.results[0].url);
+                        const response = await fetch(imageSrc);
                         const blob = await response.blob();
                         imageData = await blobToBase64(blob);
                     } catch (e) {
                         console.error('Failed to fetch image from URL:', e);
-                        imageData = task.result.results[0].url;
+                        imageData = imageSrc;
                     }
                 }
 
                 if (imageData) {
-                    // 将参考图转换为Base64存储
-                    const imageFilesBase64 = [];
-                    if (task.images && task.images.length > 0) {
-                        for (const file of task.images) {
-                            const base64 = await fileToBase64(file);
-                            imageFilesBase64.push(base64);
-                        }
-                    }
-                    
-                    await addHistoryItem(
-                        imageData, 
-                        task.prompt, 
-                        task.aspectRatio, 
-                        task.imageSize, 
-                        imageFilesBase64
-                    );
+                    await addHistoryItem(imageData, task.prompt);
                     await loadHistory();
                 }
             } catch (error) {
@@ -2832,6 +3594,7 @@
                                 <span class="task-id">${task.id.slice(-8)}</span>
                                 <span class="task-status ${task.status}">${statusText}</span>
                             </div>
+                            <div class="task-progress-text" style="margin-bottom: 6px;">${escapeHtml(MODEL_PROFILES[task.providerId]?.label || task.model)}</div>
                             <div class="task-prompt" title="${escapeHtml(task.prompt)}">${escapeHtml(task.prompt)}</div>
                             ${task.status === 'polling' || task.status === 'submitting' ? `
                                 <div class="task-progress-bar">
@@ -2876,18 +3639,18 @@
             const debugInfo = {
                 id: task.id,
                 serverTaskId: task.serverTaskId,
+                providerId: task.providerId,
                 status: task.status,
                 progress: task.progress,
                 prompt: task.prompt,
                 model: task.model,
-                aspectRatio: task.aspectRatio,
-                resolution: task.imageSize,
-                imageSize: task.imageSize,
+                params: task.params,
                 imageCount: task.images.length,
                 error: task.error,
                 pollAttempts: task.pollAttempts,
                 startTime: new Date(task.startTime).toLocaleString(),
-                result: task.result ? '已返回数据' : null
+                result: task.result ? '已返回数据' : null,
+                rawResponse: task.rawResponse || null
             };
             
             // 检查是否已存在调试面板
@@ -2899,22 +3662,17 @@
                 document.getElementById('taskContainer').parentNode.appendChild(debugPanel);
             }
             
-            // 构建调试内容
-            let debugContent = JSON.stringify(debugInfo, null, 2);
-            
-            // 如果任务完成或失败且有返回结果，显示完整的API响应数据
-            if (task.result && (task.status === 'completed' || task.status === 'failed')) {
-                const title = task.status === 'completed' ? 'API 成功响应数据' : 'API 失败响应数据';
-                debugContent += `\n\n/* ========== ${title} ========== */\n\n`;
-                debugContent += JSON.stringify(task.result, null, 2);
-            }
+            const rawResponseHtml = task.rawResponse 
+                ? `<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border-color);"><div style="color:var(--accent-blue);font-weight:600;margin-bottom:4px;">原始响应</div><div style="white-space:pre-wrap;word-break:break-all;max-height:300px;overflow-y:auto;">${escapeHtml(task.rawResponse)}</div></div>` 
+                : '';
             
             debugPanel.innerHTML = `
                 <div class="task-debug-header">
                     <span>任务调试信息</span>
                     <button onclick="closeTaskDebugPanel()" style="background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 14px;">✕</button>
                 </div>
-                <div class="task-debug-content">${debugContent}</div>
+                <div class="task-debug-content">${JSON.stringify(debugInfo, null, 2)}</div>
+                ${rawResponseHtml}
             `;
         }
 
@@ -2964,10 +3722,8 @@
         async function generateImage() {
             const baseUrl = document.getElementById('baseUrl').value.trim();
             const apiKey = document.getElementById('apiKey').value.trim();
-            const model = document.getElementById('modelName').value.trim();
             const prompt = getParsedPromptText();
-            const aspectRatio = document.getElementById('aspectRatio').value;
-            const imageSize = document.getElementById('imageSize').value;
+            const params = collectProviderSettings();
 
             if (!baseUrl || !apiKey) {
                 showMessage('请填写 API Base URL 和 API Key', 'error');
@@ -2983,7 +3739,7 @@
             hideMessage();
 
             // 创建新任务并加入队列
-            const taskId = createTask(baseUrl, apiKey, model, prompt, aspectRatio, imageSize, validImages);
+            createTask(baseUrl, apiKey, activeProvider, prompt, params, validImages);
             
             showMessage('任务已添加到队列', 'success');
             
@@ -2998,6 +3754,34 @@
                 reader.onerror = reject;
                 reader.readAsDataURL(blob);
             });
+        }
+
+        function extractImageSource(result) {
+            if (!result) return null;
+            // Nano Banana 格式：results 数组或顶层 url
+            if (Array.isArray(result.results) && result.results.length > 0) {
+                return result.results[0].url || null;
+            }
+            if (result.url) return result.url;
+            // 兼容旧格式 / data 包裹
+            const data = result.data || result;
+            if (Array.isArray(data.results) && data.results.length > 0) {
+                return data.results[0].url || null;
+            }
+            if (data.url) return data.url;
+            // GPT Image / OpenAI 格式
+            const resultItems = Array.isArray(data)
+                ? data
+                : Array.isArray(data?.data)
+                    ? data.data
+                    : Array.isArray(data?.data?.data)
+                        ? data.data.data
+                        : null;
+            const firstItem = resultItems?.[0];
+            if (!firstItem) return null;
+            if (firstItem.url) return firstItem.url;
+            if (firstItem.b64_json) return `data:image/png;base64,${firstItem.b64_json}`;
+            return null;
         }
 
         function showMessage(msg, type) {
@@ -3025,11 +3809,386 @@
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') {
                 closeImageModal();
+                closeCropHistoryPicker();
             }
         });
+
+        // ==================== 裁图工具 ====================
+        let isCropToolOpen = false;
+        let cropImage = null; // Image element
+        let cropGridCols = 3;
+        let cropGridRows = 3;
+        let cropPieces = []; // Array of data URLs
+
+        function toggleCropTool() {
+            const drawer = document.getElementById('cropToolDrawer');
+            const icon = document.getElementById('cropDrawerIcon');
+            isCropToolOpen = !isCropToolOpen;
+            if (isCropToolOpen) {
+                drawer.classList.add('open');
+                icon.classList.add('open');
+            } else {
+                drawer.classList.remove('open');
+                icon.classList.remove('open');
+            }
+        }
+
+        function ensureCropToolOpen() {
+            if (!isCropToolOpen) {
+                toggleCropTool();
+            }
+            // 滚动到裁切工具
+            setTimeout(() => {
+                document.getElementById('cropToolDrawer').scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }, 300);
+        }
+
+        function handleCropFileUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            loadFileIntoCropTool(file);
+            event.target.value = '';
+        }
+
+        function loadFileIntoCropTool(file) {
+            if (!file.type.startsWith('image/')) {
+                showMessage('请选择图片文件', 'error');
+                return;
+            }
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                setCropImage(e.target.result);
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // 裁切工具拖拽和粘贴支持
+        function initCropDropZone() {
+            const dropZone = document.getElementById('cropDropZone');
+            if (!dropZone) return;
+
+            dropZone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                dropZone.style.borderColor = 'var(--accent-blue)';
+                dropZone.style.background = 'rgba(59, 130, 246, 0.1)';
+            });
+
+            dropZone.addEventListener('dragleave', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                dropZone.style.borderColor = 'var(--border-input)';
+                dropZone.style.background = 'var(--slot-bg)';
+            });
+
+            dropZone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                dropZone.style.borderColor = 'var(--border-input)';
+                dropZone.style.background = 'var(--slot-bg)';
+                const files = e.dataTransfer.files;
+                if (files.length > 0) {
+                    loadFileIntoCropTool(files[0]);
+                }
+            });
+
+            // Ctrl+V 粘贴支持（整个裁切工具区域）
+            document.addEventListener('paste', (e) => {
+                // 如果焦点在富文本编辑器中则不拦截
+                if (document.activeElement.id === 'prompt' || document.activeElement.isContentEditable) return;
+                // 裁切工具面板必须展开
+                if (!isCropToolOpen) return;
+
+                const items = e.clipboardData.items;
+                for (let item of items) {
+                    if (item.type.startsWith('image/')) {
+                        e.preventDefault();
+                        const blob = item.getAsFile();
+                        loadFileIntoCropTool(blob);
+                        break;
+                    }
+                }
+            });
+        }
+
+        // 在页面加载时初始化拖拽区
+        document.addEventListener('DOMContentLoaded', initCropDropZone);
+
+        function setCropImage(src) {
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            img.onload = () => {
+                cropImage = img;
+                renderCropPreview();
+                document.getElementById('cropPreviewArea').classList.remove('hidden');
+                document.getElementById('cropResultArea').classList.add('hidden');
+                cropPieces = [];
+                ensureCropToolOpen();
+            };
+            img.onerror = () => {
+                showMessage('裁切工具：图片加载失败', 'error');
+            };
+            img.src = src;
+        }
+
+        function setCropGrid(cols, rows) {
+            cropGridCols = cols;
+            cropGridRows = rows;
+
+            // 更新按钮状态
+            document.querySelectorAll('#cropGridOptions .grid-option-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+
+            if (cropImage) {
+                renderCropPreview();
+                // 如果之前已切割过，清空结果
+                document.getElementById('cropResultArea').classList.add('hidden');
+                cropPieces = [];
+            }
+        }
+
+        function renderCropPreview() {
+            if (!cropImage) return;
+
+            const canvas = document.getElementById('cropCanvas');
+            const ctx = canvas.getContext('2d');
+
+            // 限制预览尺寸
+            const maxW = 600;
+            const maxH = 500;
+            let w = cropImage.naturalWidth;
+            let h = cropImage.naturalHeight;
+            const scale = Math.min(maxW / w, maxH / h, 1);
+            w = Math.round(w * scale);
+            h = Math.round(h * scale);
+
+            canvas.width = w;
+            canvas.height = h;
+
+            // 绘制图片
+            ctx.drawImage(cropImage, 0, 0, w, h);
+
+            // 绘制网格线
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([8, 6]);
+
+            // 垂直线
+            for (let i = 1; i < cropGridCols; i++) {
+                const x = Math.round(w * i / cropGridCols);
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, h);
+                ctx.stroke();
+            }
+
+            // 水平线
+            for (let j = 1; j < cropGridRows; j++) {
+                const y = Math.round(h * j / cropGridRows);
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(w, y);
+                ctx.stroke();
+            }
+
+            // 阴影描边让线条更清晰
+            ctx.strokeStyle = 'rgba(0, 0, 0, 0.4)';
+            ctx.lineWidth = 1;
+            ctx.setLineDash([8, 6]);
+            ctx.lineDashOffset = 4;
+
+            for (let i = 1; i < cropGridCols; i++) {
+                const x = Math.round(w * i / cropGridCols);
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, h);
+                ctx.stroke();
+            }
+
+            for (let j = 1; j < cropGridRows; j++) {
+                const y = Math.round(h * j / cropGridRows);
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(w, y);
+                ctx.stroke();
+            }
+
+            ctx.setLineDash([]);
+            ctx.lineDashOffset = 0;
+        }
+
+        function executeCrop() {
+            if (!cropImage) {
+                showMessage('请先选择一张图片', 'error');
+                return;
+            }
+
+            const w = cropImage.naturalWidth;
+            const h = cropImage.naturalHeight;
+            const pieceW = Math.floor(w / cropGridCols);
+            const pieceH = Math.floor(h / cropGridRows);
+
+            cropPieces = [];
+            const tempCanvas = document.createElement('canvas');
+            const tempCtx = tempCanvas.getContext('2d');
+
+            for (let row = 0; row < cropGridRows; row++) {
+                for (let col = 0; col < cropGridCols; col++) {
+                    const sx = col * pieceW;
+                    const sy = row * pieceH;
+                    // 最后一列/行取到边缘
+                    const sw = (col === cropGridCols - 1) ? (w - sx) : pieceW;
+                    const sh = (row === cropGridRows - 1) ? (h - sy) : pieceH;
+
+                    tempCanvas.width = sw;
+                    tempCanvas.height = sh;
+                    tempCtx.drawImage(cropImage, sx, sy, sw, sh, 0, 0, sw, sh);
+
+                    cropPieces.push({
+                        dataUrl: tempCanvas.toDataURL('image/png'),
+                        label: `${row + 1}-${col + 1}`,
+                        row, col
+                    });
+                }
+            }
+
+            renderCropResults();
+        }
+
+        function renderCropResults() {
+            const resultArea = document.getElementById('cropResultArea');
+            const grid = document.getElementById('cropResultGrid');
+            resultArea.classList.remove('hidden');
+
+            grid.style.gridTemplateColumns = `repeat(${cropGridCols}, 1fr)`;
+            grid.innerHTML = cropPieces.map((piece, idx) => `
+                <div class="crop-piece">
+                    <img src="${piece.dataUrl}" alt="切片 ${piece.label}">
+                    <span class="crop-piece-label">${piece.label}</span>
+                    <div class="crop-piece-overlay">
+                        <button class="crop-piece-btn" onclick="openImageModal('${piece.dataUrl}')" title="放大预览">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7"/></svg>
+                        </button>
+                        <button class="crop-piece-btn" onclick="downloadCropPiece(${idx})" title="下载此切片">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+
+            resultArea.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+
+        function downloadCropPiece(index) {
+            const piece = cropPieces[index];
+            if (!piece) return;
+            const link = document.createElement('a');
+            link.href = piece.dataUrl;
+            link.download = `crop-${piece.label}-${Date.now()}.png`;
+            link.click();
+        }
+
+        async function downloadAllCropPieces() {
+            if (cropPieces.length === 0) {
+                showMessage('没有可下载的切片', 'error');
+                return;
+            }
+
+            if (typeof JSZip === 'undefined') {
+                showMessage('JSZip 库尚未加载，请稍后再试', 'error');
+                return;
+            }
+
+            try {
+                const zip = new JSZip();
+                const folder = zip.folder('crop-pieces');
+
+                cropPieces.forEach((piece, idx) => {
+                    // 从 data URL 提取 base64 数据
+                    const base64Data = piece.dataUrl.split(',')[1];
+                    folder.file(`crop-${piece.label}.png`, base64Data, { base64: true });
+                });
+
+                const blob = await zip.generateAsync({ type: 'blob' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = `crop-${cropGridRows}x${cropGridCols}-${Date.now()}.zip`;
+                link.click();
+                URL.revokeObjectURL(url);
+
+                showMessage(`已打包 ${cropPieces.length} 张切片`, 'success');
+            } catch (error) {
+                console.error('ZIP download failed:', error);
+                showMessage('打包下载失败: ' + error.message, 'error');
+            }
+        }
+
+        // 从结果图发送到裁切工具
+        function sendResultToCrop() {
+            const resultImage = document.getElementById('resultImage');
+            if (!resultImage || !resultImage.src || resultImage.src === window.location.href) {
+                showMessage('暂无结果图片可裁切', 'error');
+                return;
+            }
+            setCropImage(resultImage.src);
+        }
+
+        // 从历史记录发送到裁切工具
+        async function sendHistoryToCrop(id) {
+            try {
+                const history = await getAllHistory();
+                const item = history.find(h => h.id === id);
+                if (item && item.imageData) {
+                    setCropImage(item.imageData);
+                } else {
+                    showMessage('未找到历史图片', 'error');
+                }
+            } catch (error) {
+                console.error('Failed to load history image for crop:', error);
+                showMessage('加载历史图片失败', 'error');
+            }
+        }
+
+        // 弹窗选择历史图片
+        async function openHistoryPickerForCrop() {
+            try {
+                const history = await getAllHistory();
+                const picker = document.getElementById('cropHistoryPicker');
+                const grid = document.getElementById('cropHistoryPickerGrid');
+
+                if (history.length === 0) {
+                    grid.innerHTML = '<div class="text-center py-8 text-sm" style="color: var(--text-muted); grid-column: 1 / -1;">暂无历史记录</div>';
+                } else {
+                    grid.innerHTML = history.map(item => `
+                        <div class="crop-history-picker-item" onclick="pickHistoryForCrop('${item.imageData.substring(0, 50)}', ${item.id})">
+                            <img src="${item.imageData}" alt="History" loading="lazy">
+                        </div>
+                    `).join('');
+                }
+
+                picker.classList.add('active');
+                document.body.style.overflow = 'hidden';
+            } catch (error) {
+                console.error('Failed to open history picker:', error);
+                showMessage('加载历史记录失败', 'error');
+            }
+        }
+
+        async function pickHistoryForCrop(_, id) {
+            closeCropHistoryPicker();
+            await sendHistoryToCrop(id);
+        }
+
+        function closeCropHistoryPicker(event) {
+            const picker = document.getElementById('cropHistoryPicker');
+            picker.classList.remove('active');
+            document.body.style.overflow = '';
+        }
     </script>
 </body>
 
 </html>
+
 
 
