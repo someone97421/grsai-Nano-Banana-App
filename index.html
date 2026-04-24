@@ -720,7 +720,7 @@
             color: var(--text-muted);
             white-space: pre-wrap;
             word-break: break-all;
-            max-height: 200px;
+            max-height: 420px;
             overflow-y: auto;
         }
 
@@ -1649,6 +1649,7 @@
         // Global state
         let activeSlot = null;
         const imageFiles = [];
+        const MAX_REFERENCE_IMAGES = 14;
         let isMentionPopupOpen = false;
         let editingChip = null;
         let selectedIndex = -1;
@@ -1735,17 +1736,24 @@
 
         // IndexedDB 相关
         const DB_NAME = 'GrsAINanoV2DB';
-        const DB_VERSION = 1;
+        const DB_VERSION = 2;
         const STORE_NAME = 'grsaiHistory';
+        const SESSION_STORE_NAME = 'grsaiSession';
+        const REFERENCE_IMAGES_STATE_KEY = 'referenceImages';
+        const SETTINGS_DRAWER_STATE_KEY = 'grsaiNanoV2SettingsDrawerOpen';
+        const CROP_TOOL_STATE_KEY = 'grsaiNanoV2CropToolOpen';
         let db = null;
 
         document.addEventListener('DOMContentLoaded', () => {
             initTheme();
             initImageGrid();
+            initDrawerStates();
             loadSavedConfig();
+            setupConfigAutoSave();
             setupPasteListener();
             setupMentionSystem();
-            initDB().then(() => {
+            initDB().then(async () => {
+                await loadSavedReferenceImages();
                 loadHistory();
             });
         });
@@ -1845,7 +1853,9 @@
             activeProvider = providerId;
             const nextSettings = providerSettings[providerId] || getProviderSettings(providerId);
             applyProviderSettings(providerId, nextSettings);
-            saveConfig();
+            if (options.save !== false) {
+                saveConfig();
+            }
         }
 
         // ==================== 主题管理 ====================
@@ -1887,18 +1897,27 @@
         }
 
         // ==================== 设置抽屉 ====================
-        function toggleSettingsDrawer() {
-            const drawer = document.getElementById('settingsDrawer');
-            const icon = document.getElementById('settingsDrawerIcon');
-            isSettingsDrawerOpen = !isSettingsDrawerOpen;
+        function setDrawerOpen(drawerId, iconId, open) {
+            const drawer = document.getElementById(drawerId);
+            const icon = document.getElementById(iconId);
+            if (!drawer || !icon) return;
 
-            if (isSettingsDrawerOpen) {
-                drawer.classList.add('open');
-                icon.classList.add('open');
-            } else {
-                drawer.classList.remove('open');
-                icon.classList.remove('open');
-            }
+            drawer.classList.toggle('open', open);
+            icon.classList.toggle('open', open);
+        }
+
+        function initDrawerStates() {
+            isSettingsDrawerOpen = localStorage.getItem(SETTINGS_DRAWER_STATE_KEY) === 'true';
+            setDrawerOpen('settingsDrawer', 'settingsDrawerIcon', isSettingsDrawerOpen);
+
+            isCropToolOpen = localStorage.getItem(CROP_TOOL_STATE_KEY) === 'true';
+            setDrawerOpen('cropToolDrawer', 'cropDrawerIcon', isCropToolOpen);
+        }
+
+        function toggleSettingsDrawer() {
+            isSettingsDrawerOpen = !isSettingsDrawerOpen;
+            setDrawerOpen('settingsDrawer', 'settingsDrawerIcon', isSettingsDrawerOpen);
+            localStorage.setItem(SETTINGS_DRAWER_STATE_KEY, String(isSettingsDrawerOpen));
         }
 
         // ==================== IndexedDB 操作 ====================
@@ -1918,8 +1937,96 @@
                         const store = database.createObjectStore(STORE_NAME, { keyPath: 'id', autoIncrement: true });
                         store.createIndex('timestamp', 'timestamp', { unique: false });
                     }
+                    if (!database.objectStoreNames.contains(SESSION_STORE_NAME)) {
+                        database.createObjectStore(SESSION_STORE_NAME, { keyPath: 'key' });
+                    }
                 };
             });
+        }
+
+        async function saveReferenceImages() {
+            if (!db) return;
+
+            const referenceImages = [];
+            for (let index = 0; index < imageFiles.length; index++) {
+                const file = imageFiles[index];
+                if (!file) continue;
+
+                try {
+                    referenceImages.push({
+                        index,
+                        dataUrl: await blobToBase64(file),
+                        name: file.name || `image${index + 1}`,
+                        type: file.type || 'image/png',
+                        lastModified: file.lastModified || Date.now()
+                    });
+                } catch (error) {
+                    console.error(`Failed to persist reference image at index ${index}:`, error);
+                }
+            }
+
+            return new Promise((resolve, reject) => {
+                const transaction = db.transaction([SESSION_STORE_NAME], 'readwrite');
+                const store = transaction.objectStore(SESSION_STORE_NAME);
+                const request = store.put({
+                    key: REFERENCE_IMAGES_STATE_KEY,
+                    images: referenceImages,
+                    timestamp: Date.now()
+                });
+                request.onsuccess = () => resolve();
+                request.onerror = () => reject(request.error);
+            });
+        }
+
+        function clearSavedReferenceImages() {
+            return new Promise((resolve, reject) => {
+                if (!db) {
+                    resolve();
+                    return;
+                }
+
+                const transaction = db.transaction([SESSION_STORE_NAME], 'readwrite');
+                const store = transaction.objectStore(SESSION_STORE_NAME);
+                const request = store.delete(REFERENCE_IMAGES_STATE_KEY);
+                request.onsuccess = () => resolve();
+                request.onerror = () => reject(request.error);
+            });
+        }
+
+        function getSavedReferenceImages() {
+            return new Promise((resolve, reject) => {
+                if (!db) {
+                    resolve([]);
+                    return;
+                }
+
+                const transaction = db.transaction([SESSION_STORE_NAME], 'readonly');
+                const store = transaction.objectStore(SESSION_STORE_NAME);
+                const request = store.get(REFERENCE_IMAGES_STATE_KEY);
+                request.onsuccess = () => resolve(request.result?.images || []);
+                request.onerror = () => reject(request.error);
+            });
+        }
+
+        async function loadSavedReferenceImages() {
+            try {
+                const referenceImages = await getSavedReferenceImages();
+                if (!referenceImages.length) return;
+
+                imageFiles.length = 0;
+                for (const refImg of referenceImages) {
+                    try {
+                        const file = await dataURLToFile(refImg.dataUrl, refImg.name || `image${refImg.index + 1}`);
+                        imageFiles[refImg.index] = file;
+                    } catch (error) {
+                        console.error(`Failed to restore saved reference image at index ${refImg.index}:`, error);
+                    }
+                }
+
+                renderImageGrid();
+            } catch (error) {
+                console.error('Failed to restore saved reference images:', error);
+            }
         }
 
         function addHistoryItem(imageData, prompt) {
@@ -2205,6 +2312,7 @@
                     // 重新渲染图片网格
                     renderImageGrid();
                 }
+                await saveReferenceImages();
 
                 // 滚动到提示词区域
                 const promptEditor = document.getElementById('prompt');
@@ -2330,7 +2438,7 @@
             grid.innerHTML = '';
 
             const validImages = imageFiles.filter(f => f !== null);
-            countEl.textContent = `${validImages.length} / 14`;
+            countEl.textContent = `${validImages.length} / ${MAX_REFERENCE_IMAGES}`;
 
             for (let i = 0; i < imageFiles.length; i++) {
                 const file = imageFiles[i];
@@ -2354,7 +2462,7 @@
                 reader.readAsDataURL(file);
 
                 slot.innerHTML = `
-                    <input type="file" id="file-${i}" accept="image/*" onchange="handleFileSelect(event, ${i})">
+                    <input type="file" id="file-${i}" accept="image/*" multiple onchange="handleFileSelect(event, ${i})">
                     <div class="absolute inset-0 flex flex-col items-center justify-center hidden" id="placeholder-${i}" style="color: var(--text-muted);">
                         <svg class="w-8 h-8 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
                         <span class="text-xs">点击或拖拽</span>
@@ -2365,10 +2473,11 @@
                         <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
                     </button>
                 `;
+                slot.onclick = () => document.getElementById(`file-${i}`).click();
                 grid.appendChild(slot);
             }
 
-            if (validImages.length < 14) {
+            if (validImages.length < MAX_REFERENCE_IMAGES) {
                 const addSlot = document.createElement('div');
                 addSlot.className = 'image-slot pastable-indicator relative border-2 border-dashed rounded-xl overflow-hidden cursor-pointer group transition-all';
                 addSlot.style.borderColor = 'var(--border-input)';
@@ -2383,6 +2492,7 @@
                 fileInput.type = 'file';
                 fileInput.id = 'file-add-new';
                 fileInput.accept = 'image/*';
+                fileInput.multiple = true;
                 fileInput.style.display = 'none';
                 fileInput.onchange = (e) => handleAddNewImage(e);
 
@@ -2399,59 +2509,15 @@
         }
 
         async function handleAddNewImage(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-
-            const validCount = imageFiles.filter(f => f !== null).length;
-            if (validCount >= 14) {
-                showMessage('最多只能上传14张参考图', 'error');
-                return;
-            }
-
-            let targetIndex = imageFiles.findIndex(f => f === null);
-            if (targetIndex === -1) {
-                targetIndex = imageFiles.length;
-                imageFiles.push(null);
-            }
-
-            try {
-                const compressedFile = await compressImage(file);
-                imageFiles[targetIndex] = compressedFile;
-                renderImageGrid();
-            } catch (error) {
-                console.error('Image compression failed:', error);
-                imageFiles[targetIndex] = file;
-                renderImageGrid();
-            }
+            await addImageFiles(event.target.files);
+            event.target.value = '';
         }
 
         async function handleDropOnAddButton(e) {
             e.preventDefault();
             e.stopPropagation();
 
-            const files = e.dataTransfer.files;
-            if (files.length > 0 && files[0].type.startsWith('image/')) {
-                const validCount = imageFiles.filter(f => f !== null).length;
-                if (validCount >= 14) {
-                    showMessage('最多只能上传14张参考图', 'error');
-                    return;
-                }
-                let newIndex = imageFiles.findIndex(f => f === null);
-                if (newIndex === -1) {
-                    newIndex = imageFiles.length;
-                    imageFiles.push(null);
-                }
-
-                try {
-                    const compressedFile = await compressImage(files[0]);
-                    imageFiles[newIndex] = compressedFile;
-                    renderImageGrid();
-                } catch (error) {
-                    console.error('Image compression failed:', error);
-                    imageFiles[newIndex] = files[0];
-                    renderImageGrid();
-                }
-            }
+            await addImageFiles(e.dataTransfer.files);
         }
 
         // 弹出式 Mention 面板
@@ -2642,6 +2708,7 @@
 
             savedRange = null;
             closeMentionPopup();
+            saveConfig();
         }
 
         function updateKeyboardSelection() {
@@ -2663,6 +2730,7 @@
                 e.preventDefault();
                 const text = (e.originalEvent || e).clipboardData.getData('text/plain');
                 document.execCommand('insertText', false, text);
+                saveConfig();
             });
 
             editor.addEventListener('keydown', function (e) {
@@ -2679,6 +2747,7 @@
                 if (isMentionPopupOpen) {
                     handlePopupInput(e);
                 }
+                saveConfig();
             });
 
             document.addEventListener('click', function (e) {
@@ -2818,17 +2887,63 @@
             return text.replace(/\n{3,}/g, '\n\n').trim();
         }
 
-        async function handleFileSelect(event, index) {
-            const file = event.target.files[0];
-            if (file) {
+        async function addImageFiles(fileList, options = {}) {
+            const files = Array.from(fileList || []).filter(file => file.type.startsWith('image/'));
+            if (files.length === 0) return;
+
+            let availableSlots = MAX_REFERENCE_IMAGES - imageFiles.filter(f => f !== null).length;
+            const replacingExisting = Number.isInteger(options.startIndex) && imageFiles[options.startIndex];
+            if (replacingExisting) {
+                availableSlots += 1;
+            }
+
+            if (availableSlots <= 0) {
+                showMessage(`最多只能上传${MAX_REFERENCE_IMAGES}张参考图`, 'error');
+                return;
+            }
+
+            const filesToAdd = files.slice(0, availableSlots);
+            if (files.length > filesToAdd.length) {
+                showMessage(`最多只能上传${MAX_REFERENCE_IMAGES}张参考图，已添加前 ${filesToAdd.length} 张`, 'error');
+            }
+
+            let nextPreferredIndex = options.startIndex;
+            for (const file of filesToAdd) {
+                let targetIndex = -1;
+
+                if (Number.isInteger(nextPreferredIndex)) {
+                    targetIndex = nextPreferredIndex;
+                    nextPreferredIndex = null;
+                    while (imageFiles.length <= targetIndex) {
+                        imageFiles.push(null);
+                    }
+                } else {
+                    targetIndex = imageFiles.findIndex(f => f === null);
+                    if (targetIndex === -1) {
+                        targetIndex = imageFiles.length;
+                        imageFiles.push(null);
+                    }
+                }
+
                 try {
-                    const compressedFile = await compressImage(file);
-                    handleImageFile(compressedFile, index);
+                    imageFiles[targetIndex] = await compressImage(file);
                 } catch (error) {
                     console.error('Image compression failed:', error);
-                    handleImageFile(file, index);
+                    imageFiles[targetIndex] = file;
                 }
             }
+
+            renderImageGrid();
+            try {
+                await saveReferenceImages();
+            } catch (error) {
+                console.error('Failed to save reference images:', error);
+            }
+        }
+
+        async function handleFileSelect(event, index) {
+            await addImageFiles(event.target.files, { startIndex: index });
+            event.target.value = '';
         }
 
         function handleDragOver(e, index) {
@@ -2848,21 +2963,7 @@
             e.stopPropagation();
             document.getElementById(`slot-${index}`).classList.remove('dragover');
 
-            const files = e.dataTransfer.files;
-            if (files.length > 0 && files[0].type.startsWith('image/')) {
-                try {
-                    const compressedFile = await compressImage(files[0]);
-                    handleImageFile(compressedFile, index);
-                } catch (error) {
-                    console.error('Image compression failed:', error);
-                    handleImageFile(files[0], index);
-                }
-            }
-        }
-
-        function handleImageFile(file, index) {
-            imageFiles[index] = file;
-            renderImageGrid();
+            await addImageFiles(e.dataTransfer.files, { startIndex: index });
         }
 
         function removeImage(e, index) {
@@ -2874,11 +2975,14 @@
             }
 
             renderImageGrid();
+            saveReferenceImages().catch(error => console.error('Failed to save reference images:', error));
             updatePromptMentionsAfterRemoval(index);
 
             if (isMentionPopupOpen) {
                 renderMentionList();
             }
+
+            saveConfig();
         }
 
         function updatePromptMentionsAfterRemoval(removedIndex) {
@@ -2913,6 +3017,8 @@
                     nextSibling.remove();
                 }
             });
+            saveReferenceImages().catch(error => console.error('Failed to save reference images:', error));
+            saveConfig();
         }
 
         function setupPasteListener() {
@@ -2922,41 +3028,10 @@
                 const items = e.clipboardData.items;
                 for (let item of items) {
                     if (item.type.indexOf('image') !== -1) {
-                        const validCount = imageFiles.filter(f => f !== null).length;
-                        if (validCount >= 14) {
-                            showMessage('最多只能上传14张参考图', 'error');
-                            return;
-                        }
-
                         const blob = item.getAsFile();
                         const file = new File([blob], `pasted-image-${Date.now()}.png`, { type: blob.type });
 
-                        let targetIndex;
-                        if (activeSlot === -1) {
-                            targetIndex = imageFiles.findIndex(f => f === null);
-                            if (targetIndex === -1) {
-                                targetIndex = imageFiles.length;
-                                imageFiles.push(null);
-                            }
-                        } else if (activeSlot !== null && activeSlot < imageFiles.length && !imageFiles[activeSlot]) {
-                            targetIndex = activeSlot;
-                        } else {
-                            targetIndex = imageFiles.findIndex(f => f === null);
-                            if (targetIndex === -1) {
-                                targetIndex = imageFiles.length;
-                                imageFiles.push(null);
-                            }
-                        }
-
-                        try {
-                            const compressedFile = await compressImage(file);
-                            imageFiles[targetIndex] = compressedFile;
-                            renderImageGrid();
-                        } catch (error) {
-                            console.error('Image compression failed:', error);
-                            imageFiles[targetIndex] = file;
-                            renderImageGrid();
-                        }
+                        await addImageFiles([file]);
                         break;
                     }
                 }
@@ -2987,12 +3062,18 @@
                 endpoint: document.getElementById('endpointSelector').value,
                 activeProvider,
                 providerSettings,
+                promptHtml: document.getElementById('prompt')?.innerHTML || '',
+                promptText: getParsedPromptText(),
                 historyLimit: document.getElementById('historyLimit').value,
                 enableCompression: document.getElementById('enableCompression').checked,
                 maxEdgeLength: document.getElementById('maxEdgeLength').value,
                 jpegQuality: document.getElementById('jpegQuality').value,
                 maxConcurrency: document.getElementById('maxConcurrency').value,
                 pollInterval: document.getElementById('pollInterval').value,
+                cropGrid: {
+                    cols: cropGridCols,
+                    rows: cropGridRows
+                },
                 timestamp: new Date().toISOString()
             };
         }
@@ -3002,10 +3083,39 @@
             localStorage.setItem('grsaiNanoV2Config', JSON.stringify(config));
         }
 
-        function resetConfig() {
+        function setupConfigAutoSave() {
+            const selectors = [
+                '#endpointSelector',
+                '#baseUrl',
+                '#apiKey',
+                '#historyLimit',
+                '#enableCompression',
+                '#maxEdgeLength',
+                '#jpegQuality',
+                '#maxConcurrency',
+                '#pollInterval',
+                '#aspectRatio',
+                '#resolution',
+                '#nanoBananaModel'
+            ];
+
+            document.querySelectorAll(selectors.join(',')).forEach(el => {
+                const eventName = el.type === 'checkbox' || el.tagName === 'SELECT' ? 'change' : 'input';
+                el.addEventListener(eventName, saveConfig);
+            });
+        }
+
+        async function resetConfig() {
             if (!confirm('确定要恢复默认配置吗？当前所有设置将被重置。')) return;
             localStorage.removeItem('grsaiNanoV2Config');
             localStorage.removeItem('grsaiNanoV2Theme');
+            localStorage.removeItem(SETTINGS_DRAWER_STATE_KEY);
+            localStorage.removeItem(CROP_TOOL_STATE_KEY);
+            try {
+                await clearSavedReferenceImages();
+            } catch (error) {
+                console.error('Failed to clear saved reference images:', error);
+            }
             location.reload();
         }
 
@@ -3075,8 +3185,22 @@
 
             setActiveProvider(migratedProvider, {
                 preserveCurrent: false,
-                providerSettings
+                providerSettings,
+                save: false
             });
+
+            const promptEditor = document.getElementById('prompt');
+            if (promptEditor) {
+                if (config?.promptHtml) {
+                    promptEditor.innerHTML = config.promptHtml;
+                } else if (config?.promptText) {
+                    promptEditor.innerHTML = parsePromptWithMentions(config.promptText);
+                }
+            }
+
+            if (config?.cropGrid) {
+                applyCropGridSettings(config.cropGrid.cols, config.cropGrid.rows, false);
+            }
         }
 
         function exportConfig() {
@@ -3140,7 +3264,8 @@
                 error: null,
                 startTime: Date.now(),
                 pollTimer: null,
-                pollAttempts: 0
+                pollAttempts: 0,
+                requestHistory: []
             };
             
             taskQueue.push(task);
@@ -3264,6 +3389,60 @@
             throw err;
         }
 
+        function abbreviateMiddle(value, head = 12, tail = 8) {
+            if (typeof value !== 'string') return value;
+            if (value.length <= head + tail + 6) return value;
+            return `${value.slice(0, head)}...${value.slice(-tail)} (${value.length} chars)`;
+        }
+
+        function sanitizeDebugValue(value, key = '') {
+            if (typeof value === 'string') {
+                if (/authorization/i.test(key)) {
+                    return value.replace(/Bearer\s+(.+)/i, (_, token) => `Bearer ${abbreviateMiddle(token, 8, 6)}`);
+                }
+                if (/api[-_]?key|token|secret/i.test(key)) {
+                    return abbreviateMiddle(value, 8, 6);
+                }
+                if (/^data:image\/[^;]+;base64,/.test(value)) {
+                    const [prefix, base64 = ''] = value.split(',');
+                    return `${prefix},${abbreviateMiddle(base64, 18, 12)}`;
+                }
+                if (/base64|b64|image/i.test(key) && value.length > 120) {
+                    return abbreviateMiddle(value, 18, 12);
+                }
+                return value;
+            }
+
+            if (Array.isArray(value)) {
+                return value.map(item => sanitizeDebugValue(item, key));
+            }
+
+            if (value && typeof value === 'object') {
+                return Object.fromEntries(
+                    Object.entries(value).map(([childKey, childValue]) => [childKey, sanitizeDebugValue(childValue, childKey)])
+                );
+            }
+
+            return value;
+        }
+
+        function recordTaskRequest(task, request) {
+            if (!task) return;
+            if (!Array.isArray(task.requestHistory)) {
+                task.requestHistory = [];
+            }
+            task.requestHistory.push({
+                time: new Date().toLocaleString(),
+                ...sanitizeDebugValue(request)
+            });
+            if (task.requestHistory.length > 20) {
+                task.requestHistory = [
+                    task.requestHistory[0],
+                    ...task.requestHistory.slice(-19)
+                ];
+            }
+        }
+
         async function submitNanoBananaTask(task, currentImages) {
             const payload = {
                 model: task.model,
@@ -3285,14 +3464,22 @@
                 payload.urls = await Promise.all(currentImages.map(file => blobToBase64(file)));
             }
 
-            return fetch(`${task.baseUrl}/v1/draw/nano-banana`, {
+            const url = `${task.baseUrl}/v1/draw/nano-banana`;
+            const requestOptions = {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${task.apiKey}`,
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify(payload)
+            };
+            recordTaskRequest(task, {
+                url,
+                ...requestOptions,
+                body: payload
             });
+
+            return fetch(url, requestOptions);
         }
 
         async function submitGptImageTask(task, currentImages) {
@@ -3314,14 +3501,22 @@
                 payload.urls = await Promise.all(currentImages.map(file => blobToBase64(file)));
             }
 
-            return fetch(`${task.baseUrl}/v1/draw/completions`, {
+            const url = `${task.baseUrl}/v1/draw/completions`;
+            const requestOptions = {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${task.apiKey}`,
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify(payload)
+            };
+            recordTaskRequest(task, {
+                url,
+                ...requestOptions,
+                body: payload
             });
+
+            return fetch(url, requestOptions);
         }
 
         // 开始轮询任务状态
@@ -3338,14 +3533,23 @@
                 task.pollAttempts++;
 
                 try {
-                    const response = await fetch(`${task.baseUrl}/v1/draw/result`, {
+                    const url = `${task.baseUrl}/v1/draw/result`;
+                    const requestBody = { id: task.serverTaskId };
+                    const requestOptions = {
                         method: 'POST',
                         headers: {
                             'Authorization': `Bearer ${task.apiKey}`,
                             'Content-Type': 'application/json'
                         },
-                        body: JSON.stringify({ id: task.serverTaskId })
+                        body: JSON.stringify(requestBody)
+                    };
+                    recordTaskRequest(task, {
+                        url,
+                        ...requestOptions,
+                        body: requestBody
                     });
+
+                    const response = await fetch(url, requestOptions);
 
                     const data = await parseResponseJson(response, task);
 
@@ -3422,13 +3626,20 @@
                 task.pollAttempts++;
 
                 try {
-                    const response = await fetch(`${task.baseUrl}/images/tasks/${task.serverTaskId}`, {
+                    const url = `${task.baseUrl}/images/tasks/${task.serverTaskId}`;
+                    const requestOptions = {
                         method: 'GET',
                         headers: {
                             'Authorization': `Bearer ${task.apiKey}`,
                             'Content-Type': 'application/json'
                         }
+                    };
+                    recordTaskRequest(task, {
+                        url,
+                        ...requestOptions
                     });
+
+                    const response = await fetch(url, requestOptions);
 
                     const data = await parseResponseJson(response, task);
 
@@ -3646,6 +3857,7 @@
                 model: task.model,
                 params: task.params,
                 imageCount: task.images.length,
+                requests: task.requestHistory || [],
                 error: task.error,
                 pollAttempts: task.pollAttempts,
                 startTime: new Date(task.startTime).toLocaleString(),
@@ -3661,18 +3873,15 @@
                 debugPanel.className = 'task-debug-panel';
                 document.getElementById('taskContainer').parentNode.appendChild(debugPanel);
             }
-            
-            const rawResponseHtml = task.rawResponse 
-                ? `<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border-color);"><div style="color:var(--accent-blue);font-weight:600;margin-bottom:4px;">原始响应</div><div style="white-space:pre-wrap;word-break:break-all;max-height:300px;overflow-y:auto;">${escapeHtml(task.rawResponse)}</div></div>` 
-                : '';
+
+            const debugJson = JSON.stringify(debugInfo, null, 2);
             
             debugPanel.innerHTML = `
                 <div class="task-debug-header">
                     <span>任务调试信息</span>
                     <button onclick="closeTaskDebugPanel()" style="background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 14px;">✕</button>
                 </div>
-                <div class="task-debug-content">${JSON.stringify(debugInfo, null, 2)}</div>
-                ${rawResponseHtml}
+                <div class="task-debug-content">${escapeHtml(debugJson)}</div>
             `;
         }
 
@@ -3821,16 +4030,9 @@
         let cropPieces = []; // Array of data URLs
 
         function toggleCropTool() {
-            const drawer = document.getElementById('cropToolDrawer');
-            const icon = document.getElementById('cropDrawerIcon');
             isCropToolOpen = !isCropToolOpen;
-            if (isCropToolOpen) {
-                drawer.classList.add('open');
-                icon.classList.add('open');
-            } else {
-                drawer.classList.remove('open');
-                icon.classList.remove('open');
-            }
+            setDrawerOpen('cropToolDrawer', 'cropDrawerIcon', isCropToolOpen);
+            localStorage.setItem(CROP_TOOL_STATE_KEY, String(isCropToolOpen));
         }
 
         function ensureCropToolOpen() {
@@ -3931,13 +4133,17 @@
             img.src = src;
         }
 
-        function setCropGrid(cols, rows) {
-            cropGridCols = cols;
-            cropGridRows = rows;
+        function applyCropGridSettings(cols, rows, save = true) {
+            const normalizedCols = parseInt(cols) || 3;
+            const normalizedRows = parseInt(rows) || 3;
 
-            // 更新按钮状态
-            document.querySelectorAll('#cropGridOptions .grid-option-btn').forEach(btn => btn.classList.remove('active'));
-            event.target.classList.add('active');
+            cropGridCols = normalizedCols;
+            cropGridRows = normalizedRows;
+
+            document.querySelectorAll('#cropGridOptions .grid-option-btn').forEach(btn => {
+                const isActive = btn.getAttribute('onclick') === `setCropGrid(${normalizedCols}, ${normalizedRows})`;
+                btn.classList.toggle('active', isActive);
+            });
 
             if (cropImage) {
                 renderCropPreview();
@@ -3945,6 +4151,14 @@
                 document.getElementById('cropResultArea').classList.add('hidden');
                 cropPieces = [];
             }
+
+            if (save) {
+                saveConfig();
+            }
+        }
+
+        function setCropGrid(cols, rows) {
+            applyCropGridSettings(cols, rows);
         }
 
         function renderCropPreview() {
