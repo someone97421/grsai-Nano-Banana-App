@@ -184,8 +184,9 @@
         /* 富文本编辑器样式 */
         .prompt-editor {
             min-height: 120px;
-            max-height: 200px;
+            max-height: 600px;
             overflow-y: auto;
+            resize: vertical;
             white-space: pre-wrap;
             word-break: break-word;
             background: var(--bg-input);
@@ -695,6 +696,113 @@
             text-align: right;
         }
 
+	/* 浮动任务按钮 */
+	.task-float-btn {
+	    position: fixed;
+	    bottom: 24px;
+	    right: 24px;
+	    width: 48px;
+	    height: 48px;
+	    border-radius: 50%;
+	    background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
+	    color: white;
+	    border: none;
+	    cursor: pointer;
+	    display: flex;
+	    align-items: center;
+	    justify-content: center;
+	    font-size: 16px;
+	    font-weight: 700;
+	    box-shadow: 0 8px 24px rgba(59, 130, 246, 0.4);
+	    transition: all 0.3s ease;
+	    z-index: 998;
+	    font-family: monospace;
+	}
+	.task-float-btn:hover {
+	    transform: scale(1.1);
+	    box-shadow: 0 12px 32px rgba(59, 130, 246, 0.5);
+	}
+	.task-float-btn:active {
+	    transform: scale(0.95);
+	}
+	.task-float-btn.has-tasks {
+	    animation: pulse-glow 2s infinite;
+	}
+	@keyframes pulse-glow {
+	    0%, 100% { box-shadow: 0 8px 24px rgba(59, 130, 246, 0.4); }
+	    50% { box-shadow: 0 8px 32px rgba(59, 130, 246, 0.7); }
+	}
+	.task-float-btn.idle {
+	    background: var(--btn-secondary);
+	    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+	}
+
+	/* 任务侧边栏遮罩 */
+	.task-sidebar-overlay {
+	    position: fixed;
+	    inset: 0;
+	    background: rgba(0, 0, 0, 0.4);
+	    z-index: 997;
+	    opacity: 0;
+	    visibility: hidden;
+	    transition: all 0.3s ease;
+	}
+	.task-sidebar-overlay.active {
+	    opacity: 1;
+	    visibility: visible;
+	}
+
+	/* 任务侧边栏 */
+	.task-sidebar {
+	    position: fixed;
+	    top: 0;
+	    right: 0;
+	    bottom: 0;
+	    width: 380px;
+	    max-width: 90vw;
+	    background: var(--bg-primary);
+	    border-left: 1px solid var(--border-color);
+	    z-index: 999;
+	    display: flex;
+	    flex-direction: column;
+	    transform: translateX(100%);
+	    transition: transform 0.3s ease;
+	    box-shadow: -8px 0 30px rgba(0,0,0,0.3);
+	}
+	.task-sidebar.open {
+	    transform: translateX(0);
+	}
+	.task-sidebar-header {
+	    display: flex;
+	    justify-content: space-between;
+	    align-items: center;
+	    padding: 16px 20px;
+	    border-bottom: 1px solid var(--border-color);
+	    flex-shrink: 0;
+	}
+	.task-sidebar-body {
+	    flex: 1;
+	    overflow-y: auto;
+	    padding: 16px 20px;
+	}
+	.task-sidebar-close {
+	    width: 32px;
+	    height: 32px;
+	    border-radius: 50%;
+	    border: none;
+	    background: var(--btn-secondary);
+	    color: var(--text-secondary);
+	    cursor: pointer;
+	    display: flex;
+	    align-items: center;
+	    justify-content: center;
+	    transition: all 0.2s;
+	}
+	.task-sidebar-close:hover {
+	    background: var(--btn-secondary-hover);
+	    color: var(--text-primary);
+	}
+
         /* 任务调试信息面板 */
         .task-debug-panel {
             margin-top: 16px;
@@ -1199,6 +1307,12 @@
                                         <input type="number" id="historyLimit" value="20" min="5" max="100" onchange="saveConfig()"
                                             class="w-full px-3 py-2 rounded-lg text-sm form-input">
                                     </div>
+                                    <div class="flex-1">
+                                        <label class="text-xs mb-1 block"
+                                            style="color: var(--text-muted);">任务列表上限</label>
+                                        <input type="number" id="taskLimit" value="50" min="10" max="500" onchange="saveConfig()"
+                                            class="w-full px-3 py-2 rounded-lg text-sm form-input">
+                                    </div>
                                     <button onclick="clearHistory()"
                                         class="mt-5 px-4 py-2 rounded-lg text-sm transition-colors flex items-center gap-2"
                                         style="background: rgba(239, 68, 68, 0.2); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3);">
@@ -1263,9 +1377,9 @@
         </div>
 
         <!-- 第二排：参考图输入区 + 提示词输入区 -->
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
             <!-- 左侧：参考图输入区 -->
-            <div class="glass-panel rounded-2xl p-5">
+            <div class="glass-panel rounded-2xl p-5 lg:col-span-1">
                 <div class="flex justify-between items-center mb-4">
                     <h2 class="text-lg font-semibold flex items-center gap-2">
                         <svg class="w-5 h-5" style="color: var(--accent-blue);" fill="none" stroke="currentColor"
@@ -1289,7 +1403,7 @@
             </div>
 
             <!-- 右侧：提示词输入区 -->
-            <div class="glass-panel rounded-2xl p-5">
+            <div class="glass-panel rounded-2xl p-5 lg:col-span-2">
                 <div class="flex flex-col gap-4 mb-4">
                     <div class="flex items-center justify-between gap-3 flex-wrap">
                         <h2 class="text-lg font-semibold flex items-center gap-2">
@@ -1410,59 +1524,67 @@
                 style="background: var(--bg-input); color: var(--text-muted);"></div>
         </div>
 
-        <!-- 第四排：任务列表 + 历史记录区 -->
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            <!-- 左侧：任务列表 -->
-            <div class="glass-panel rounded-2xl p-5 lg:col-span-1">
-                <div class="flex justify-between items-center mb-4">
-                    <h2 class="text-lg font-semibold flex items-center gap-2">
-                        <svg class="w-5 h-5" style="color: var(--accent-blue);" fill="none" stroke="currentColor"
-                            viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
-                        </svg>
-                        任务列表
-                    </h2>
-                    <div class="flex items-center gap-2">
-                        <span id="taskCount" class="text-xs px-2 py-1 rounded"
-                            style="background: var(--bg-input); color: var(--text-muted);">0</span>
-                        <button onclick="clearAllTasks()" class="text-xs transition-colors px-2 py-1 rounded"
-                            style="background: rgba(239, 68, 68, 0.2); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3);">
-                            清理
-                        </button>
-                    </div>
-                </div>
-                <div id="taskContainer" class="task-list-container custom-scrollbar">
-                    <div class="text-center py-8 text-sm" style="color: var(--text-muted);">
-                        暂无任务
-                    </div>
+        <!-- 第四排：历史记录区 -->
+        <div class="glass-panel rounded-2xl p-5">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-lg font-semibold flex items-center gap-2">
+                    <svg class="w-5 h-5" style="color: var(--accent-purple);" fill="none" stroke="currentColor"
+                        viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    生成历史
+                </h2>
+                <div class="flex items-center gap-2">
+                    <span id="historyCount" class="text-xs px-2 py-1 rounded"
+                        style="background: var(--bg-input); color: var(--text-muted);">0</span>
+                    <button onclick="clearHistory()" class="text-xs transition-colors px-2 py-1 rounded"
+                        style="background: rgba(239, 68, 68, 0.2); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3);">
+                        清理
+                    </button>
                 </div>
             </div>
-
-            <!-- 右侧：生成历史 -->
-            <div class="glass-panel rounded-2xl p-5 lg:col-span-2">
-                <div class="flex justify-between items-center mb-4">
-                    <h2 class="text-lg font-semibold flex items-center gap-2">
-                        <svg class="w-5 h-5" style="color: var(--accent-purple);" fill="none" stroke="currentColor"
-                            viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        生成历史
-                    </h2>
-                    <div class="flex items-center gap-2">
-                        <span id="historyCount" class="text-xs px-2 py-1 rounded"
-                            style="background: var(--bg-input); color: var(--text-muted);">0</span>
-                        <button onclick="clearHistory()" class="text-xs transition-colors px-2 py-1 rounded"
-                            style="background: rgba(239, 68, 68, 0.2); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3);">
-                            清理
-                        </button>
-                    </div>
+            <div id="historyContainer" class="history-container custom-scrollbar">
+                <div class="text-center py-8 text-sm flex-shrink-0 w-full" style="color: var(--text-muted);">
+                    暂无历史记录
                 </div>
-                <div id="historyContainer" class="history-container custom-scrollbar">
-                    <div class="text-center py-8 text-sm flex-shrink-0 w-full" style="color: var(--text-muted);">
-                        暂无历史记录
-                    </div>
+            </div>
+        </div>
+
+        <!-- 浮动任务按钮 -->
+        <button class="task-float-btn idle" id="taskFloatBtn" onclick="toggleTaskSidebar()" title="任务列表">0</button>
+
+        <!-- 任务侧边栏遮罩 -->
+        <div class="task-sidebar-overlay" id="taskSidebarOverlay" onclick="closeTaskSidebar()"></div>
+
+        <!-- 任务侧边栏 -->
+        <div class="task-sidebar" id="taskSidebar">
+            <div class="task-sidebar-header">
+                <h2 class="text-lg font-semibold flex items-center gap-2">
+                    <svg class="w-5 h-5" style="color: var(--accent-blue);" fill="none" stroke="currentColor"
+                        viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                    </svg>
+                    任务列表
+                    <span id="taskCountSidebar" class="text-xs px-2 py-1 rounded"
+                        style="background: var(--bg-input); color: var(--text-muted); margin-left: 4px;">0</span>
+                </h2>
+                <div class="flex items-center gap-2">
+                    <button onclick="clearAllTasks()" class="text-xs transition-colors px-2 py-1 rounded"
+                        style="background: rgba(239, 68, 68, 0.2); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3);">
+                        清理
+                    </button>
+                    <button onclick="closeTaskSidebar()" class="task-sidebar-close" title="关闭">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            <div class="task-sidebar-body" id="taskContainer">
+                <div class="text-center py-8 text-sm" style="color: var(--text-muted);">
+                    暂无任务
                 </div>
             </div>
         </div>
@@ -2558,17 +2680,23 @@
             const editor = document.getElementById('prompt');
             const editorRect = editor.getBoundingClientRect();
 
-            const sel = window.getSelection();
             let cursorX = editorRect.left + 20;
             let cursorY = editorRect.top + 50;
 
-            if (sel.rangeCount > 0) {
-                const range = sel.getRangeAt(0);
-                const rects = range.getClientRects();
-                if (rects.length > 0) {
-                    const rect = rects[rects.length - 1];
-                    cursorX = rect.left;
-                    cursorY = rect.bottom + 5;
+            if (editingChip) {
+                const chipRect = editingChip.getBoundingClientRect();
+                cursorX = chipRect.left;
+                cursorY = chipRect.bottom + 5;
+            } else {
+                const sel = window.getSelection();
+                if (sel.rangeCount > 0) {
+                    const range = sel.getRangeAt(0);
+                    const rects = range.getClientRects();
+                    if (rects.length > 0) {
+                        const rect = rects[rects.length - 1];
+                        cursorX = rect.left;
+                        cursorY = rect.bottom + 5;
+                    }
                 }
             }
 
@@ -2652,6 +2780,7 @@
 
         function selectImageForInsert(index) {
             const editor = document.getElementById('prompt');
+            const savedScrollTop = editor.scrollTop;
 
             const chipInner = `@img${index + 1} <svg style="width:12px;height:12px;margin-left:2px" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>`;
 
@@ -2709,6 +2838,7 @@
             savedRange = null;
             closeMentionPopup();
             saveConfig();
+            requestAnimationFrame(() => { editor.scrollTop = savedScrollTop; });
         }
 
         function updateKeyboardSelection() {
@@ -3065,6 +3195,7 @@
                 promptHtml: document.getElementById('prompt')?.innerHTML || '',
                 promptText: getParsedPromptText(),
                 historyLimit: document.getElementById('historyLimit').value,
+                taskLimit: parseInt(document.getElementById('taskLimit').value) || 50,
                 enableCompression: document.getElementById('enableCompression').checked,
                 maxEdgeLength: document.getElementById('maxEdgeLength').value,
                 jpegQuality: document.getElementById('jpegQuality').value,
@@ -3089,6 +3220,7 @@
                 '#baseUrl',
                 '#apiKey',
                 '#historyLimit',
+                '#taskLimit',
                 '#enableCompression',
                 '#maxEdgeLength',
                 '#jpegQuality',
@@ -3136,6 +3268,7 @@
             document.getElementById('baseUrl').value = baseUrl;
             document.getElementById('apiKey').value = config?.apiKey || '';
             document.getElementById('historyLimit').value = config?.historyLimit || '20';
+            document.getElementById('taskLimit').value = config?.taskLimit || '50';
             document.getElementById('enableCompression').checked = config?.enableCompression === true;
             document.getElementById('maxEdgeLength').value = config?.maxEdgeLength || '2560';
             document.getElementById('jpegQuality').value = config?.jpegQuality || '0.9';
@@ -3239,6 +3372,12 @@
         
         // 创建新任务
         function createTask(baseUrl, apiKey, providerId, prompt, params, validImages) {
+            // 检查任务数量上限
+            const taskLimit = parseInt(document.getElementById('taskLimit').value) || 50;
+            while (taskQueue.length >= taskLimit) {
+                const removed = taskQueue.shift();
+                if (removed.pollTimer) clearInterval(removed.pollTimer);
+            }
             taskIdCounter++;
             const localTaskId = `local-${Date.now()}-${taskIdCounter}`;
             const profile = MODEL_PROFILES[providerId] || MODEL_PROFILES['nano-banana'];
@@ -3755,15 +3894,16 @@
         // 更新任务UI
         function updateTaskUI(changedTask) {
             const taskContainer = document.getElementById('taskContainer');
-            const taskCountEl = document.getElementById('taskCount');
+            const taskCountSidebar = document.getElementById('taskCountSidebar');
+            const floatBtn = document.getElementById('taskFloatBtn');
             const btnText = document.getElementById('btnText');
             const loader = document.getElementById('btnLoader');
-            
+
             const pendingCount = taskQueue.filter(t => t.status === 'pending').length;
             const runningCount = taskQueue.filter(t => t.status === 'submitting' || t.status === 'polling').length;
             const completedCount = taskQueue.filter(t => t.status === 'completed').length;
             const failedCount = taskQueue.filter(t => t.status === 'failed').length;
-            
+
             // 更新按钮状态
             if (runningCount > 0) {
                 btnText.textContent = '生成中...';
@@ -3775,10 +3915,25 @@
                 btnText.textContent = '生成图像';
                 loader.classList.add('hidden');
             }
-            
-            // 更新任务数量
-            taskCountEl.textContent = taskQueue.length;
-            
+
+            // 更新浮动按钮
+            if (runningCount > 0) {
+                floatBtn.textContent = runningCount;
+                floatBtn.className = 'task-float-btn has-tasks';
+                floatBtn.style.display = 'flex';
+            } else if (taskQueue.length > 0) {
+                floatBtn.textContent = '0';
+                floatBtn.className = 'task-float-btn idle';
+                floatBtn.style.display = 'flex';
+            } else {
+                floatBtn.style.display = 'none';
+            }
+
+            // 更新侧边栏任务数量
+            if (taskCountSidebar) {
+                taskCountSidebar.textContent = taskQueue.length;
+            }
+
             // 渲染任务列表
             if (taskQueue.length === 0) {
                 taskContainer.innerHTML = `
@@ -3896,6 +4051,30 @@
         }
 
         // 清理所有任务
+
+	// 侧边栏任务列表管理
+	let isTaskSidebarOpen = false;
+
+	function toggleTaskSidebar() {
+	    if (isTaskSidebarOpen) {
+	        closeTaskSidebar();
+	    } else {
+	        openTaskSidebar();
+	    }
+	}
+
+	function openTaskSidebar() {
+	    isTaskSidebarOpen = true;
+	    document.getElementById('taskSidebar').classList.add('open');
+	    document.getElementById('taskSidebarOverlay').classList.add('active');
+	    updateTaskUI();
+	}
+
+	function closeTaskSidebar() {
+	    isTaskSidebarOpen = false;
+	    document.getElementById('taskSidebar').classList.remove('open');
+	    document.getElementById('taskSidebarOverlay').classList.remove('active');
+	}
         function clearAllTasks() {
             if (taskQueue.length === 0) return;
             
