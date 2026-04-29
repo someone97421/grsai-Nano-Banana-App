@@ -737,19 +737,9 @@
 	    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
 	}
 
-	/* 任务侧边栏遮罩 */
+	/* 任务侧边栏遮罩 - 不再强制灰色 */
 	.task-sidebar-overlay {
-	    position: fixed;
-	    inset: 0;
-	    background: rgba(0, 0, 0, 0.4);
-	    z-index: 997;
-	    opacity: 0;
-	    visibility: hidden;
-	    transition: all 0.3s ease;
-	}
-	.task-sidebar-overlay.active {
-	    opacity: 1;
-	    visibility: visible;
+	    display: none;
 	}
 
 	/* 任务侧边栏 */
@@ -1134,7 +1124,7 @@
         <img id="modalImage" src="" alt="Preview" onclick="event.stopPropagation()">
     </div>
 
-    <div class="max-w-7xl mx-auto space-y-4">
+    <div id="mainContainer" class="max-w-7xl mx-auto space-y-4 transition-all duration-300">
         <!-- 标题 -->
         <div class="text-center space-y-2 mb-6">
             <h1
@@ -1473,7 +1463,8 @@
                 <button onclick="generateImage()" id="generateBtn"
                     class="w-full mt-4 py-3 rounded-xl font-semibold text-base shadow-lg transition-all transform hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2"
                     style="background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple)); color: white; box-shadow: 0 10px 25px -5px rgba(59, 130, 246, 0.4);">
-                    <span id="btnText">生成图像</span>
+                    <span id="btnText">添加队列</span>
+                    <span id="btnQueueCount" class="hidden text-sm font-mono bg-white/20 px-2 py-0.5 rounded-md">0</span>
                     <div id="btnLoader" class="loader hidden"></div>
                 </button>
 
@@ -1552,10 +1543,7 @@
         </div>
 
         <!-- 浮动任务按钮 -->
-        <button class="task-float-btn idle" id="taskFloatBtn" onclick="toggleTaskSidebar()" title="任务列表">0</button>
-
-        <!-- 任务侧边栏遮罩 -->
-        <div class="task-sidebar-overlay" id="taskSidebarOverlay" onclick="closeTaskSidebar()"></div>
+        <button class="task-float-btn idle" id="taskFloatBtn" onclick="toggleTaskSidebar()" title="任务列表" style="display: flex;">0</button>
 
         <!-- 任务侧边栏 -->
         <div class="task-sidebar" id="taskSidebar">
@@ -3905,28 +3893,41 @@
             const failedCount = taskQueue.filter(t => t.status === 'failed').length;
 
             // 更新按钮状态
+            const btnQueueCount = document.getElementById('btnQueueCount');
+            const totalActive = runningCount + pendingCount;
+            
             if (runningCount > 0) {
-                btnText.textContent = '生成中...';
+                btnText.textContent = '添加队列';
                 loader.classList.remove('hidden');
+                if (btnQueueCount) {
+                    btnQueueCount.textContent = totalActive;
+                    btnQueueCount.classList.remove('hidden');
+                }
             } else if (pendingCount > 0) {
-                btnText.textContent = '等待中...';
+                btnText.textContent = '添加队列';
                 loader.classList.remove('hidden');
+                if (btnQueueCount) {
+                    btnQueueCount.textContent = totalActive;
+                    btnQueueCount.classList.remove('hidden');
+                }
             } else {
-                btnText.textContent = '生成图像';
+                btnText.textContent = '添加队列';
                 loader.classList.add('hidden');
+                if (btnQueueCount) {
+                    btnQueueCount.classList.add('hidden');
+                }
             }
 
             // 更新浮动按钮
             if (runningCount > 0) {
                 floatBtn.textContent = runningCount;
                 floatBtn.className = 'task-float-btn has-tasks';
-                floatBtn.style.display = 'flex';
             } else if (taskQueue.length > 0) {
                 floatBtn.textContent = '0';
                 floatBtn.className = 'task-float-btn idle';
-                floatBtn.style.display = 'flex';
             } else {
-                floatBtn.style.display = 'none';
+                floatBtn.textContent = '0';
+                floatBtn.className = 'task-float-btn idle';
             }
 
             // 更新侧边栏任务数量
@@ -4066,15 +4067,59 @@
 	function openTaskSidebar() {
 	    isTaskSidebarOpen = true;
 	    document.getElementById('taskSidebar').classList.add('open');
-	    document.getElementById('taskSidebarOverlay').classList.add('active');
+	    adjustMainContainer();
 	    updateTaskUI();
 	}
 
 	function closeTaskSidebar() {
 	    isTaskSidebarOpen = false;
 	    document.getElementById('taskSidebar').classList.remove('open');
-	    document.getElementById('taskSidebarOverlay').classList.remove('active');
+	    adjustMainContainer();
 	}
+
+	// 调整主区域宽度，避免被侧边栏遮挡
+	function adjustMainContainer() {
+	    const mainContainer = document.getElementById('mainContainer');
+	    const sidebar = document.getElementById('taskSidebar');
+	    const floatBtn = document.getElementById('taskFloatBtn');
+	    if (!mainContainer || !sidebar) return;
+
+	    if (isTaskSidebarOpen) {
+	        const sidebarWidth = Math.min(380, window.innerWidth * 0.9);
+	        const mainRect = mainContainer.getBoundingClientRect();
+	        const overlap = mainRect.right - (window.innerWidth - sidebarWidth);
+	        
+	        if (overlap > 0) {
+	            // 侧边栏遮挡了主区域，压缩主区域宽度
+	            const newMaxWidth = mainRect.width - overlap - 24; // 24px 为间距
+	            mainContainer.style.maxWidth = Math.max(newMaxWidth, 400) + 'px';
+	            mainContainer.style.marginRight = (sidebarWidth + 16) + 'px';
+	            mainContainer.style.marginLeft = 'auto';
+	        }
+	        // 侧边栏打开时，浮动按钮移到左侧避免被遮挡
+	        if (floatBtn) {
+	            floatBtn.style.right = (sidebarWidth + 16) + 'px';
+	            floatBtn.style.transition = 'right 0.3s ease';
+	        }
+	    } else {
+	        // 恢复默认
+	        mainContainer.style.maxWidth = '';
+	        mainContainer.style.marginRight = '';
+	        mainContainer.style.marginLeft = '';
+	        // 恢复浮动按钮位置
+	        if (floatBtn) {
+	            floatBtn.style.right = '24px';
+	            floatBtn.style.transition = 'right 0.3s ease';
+	        }
+	    }
+	}
+
+	// 监听窗口大小变化
+	window.addEventListener('resize', () => {
+	    if (isTaskSidebarOpen) {
+	        adjustMainContainer();
+	    }
+	});
         function clearAllTasks() {
             if (taskQueue.length === 0) return;
             
