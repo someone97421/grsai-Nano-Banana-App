@@ -793,33 +793,72 @@
 	    color: var(--text-primary);
 	}
 
-        /* 任务调试信息面板 */
-        .task-debug-panel {
-            margin-top: 16px;
-            padding: 12px;
-            border-radius: 10px;
-            background: var(--bg-input);
-            border: 1px solid var(--border-color);
+        /* 任务详情展开 */
+        .task-summary {
+            cursor: pointer;
         }
-
-        .task-debug-header {
-            font-size: 12px;
+        .task-summary:hover {
+            opacity: 0.9;
+        }
+        .task-detail {
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px solid var(--border-color);
+            display: none;
+            animation: task-detail-in 0.2s ease;
+        }
+        .task-item.open .task-detail {
+            display: block;
+        }
+        .task-item.open {
+            border-color: var(--accent-blue);
+            background: rgba(59, 130, 246, 0.08);
+        }
+        @keyframes task-detail-in {
+            from { opacity: 0; transform: translateY(-4px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .task-detail-section {
+            margin-bottom: 10px;
+        }
+        .task-detail-section-title {
+            font-size: 11px;
             font-weight: 600;
             color: var(--text-secondary);
-            margin-bottom: 8px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
+            margin-bottom: 4px;
         }
-
+        .task-detail-param {
+            font-size: 11px;
+            color: var(--text-muted);
+            line-height: 1.5;
+        }
         .task-debug-content {
             font-family: monospace;
-            font-size: 11px;
+            font-size: 10px;
             color: var(--text-muted);
             white-space: pre-wrap;
             word-break: break-all;
-            max-height: 420px;
+            max-height: 300px;
             overflow-y: auto;
+            background: var(--bg-input);
+            padding: 8px;
+            border-radius: 6px;
+            line-height: 1.4;
+        }
+        .task-detail-toggle {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .task-chevron {
+            width: 16px;
+            height: 16px;
+            transition: transform 0.2s ease;
+            color: var(--text-muted);
+            flex-shrink: 0;
+        }
+        .task-item.open .task-chevron {
+            transform: rotate(180deg);
         }
 
         /* 输入框统一样式 */
@@ -1434,7 +1473,7 @@
                 </div>
 
                 <!-- 生图参数：按模型切换 -->
-                <div class="grid grid-cols-2 gap-3 mt-4">
+                <div class="grid grid-cols-2 gap-3 mt-4" id="paramGrid">
                     <div class="space-y-1">
                         <label class="text-xs font-medium" style="color: var(--text-muted);" id="aspectRatioLabel">宽高比</label>
                         <select id="aspectRatio" class="w-full px-3 py-2 rounded-lg text-sm outline-none form-select"></select>
@@ -1458,6 +1497,35 @@
                         <option value="nano-banana-2-cl">Nano Banana 2 CL</option>
                         <option value="nano-banana-2-cl-4k">Nano Banana 2 CL 4K</option>
                     </select>
+                </div>
+
+                <!-- GPT Image 2 专属参数 -->
+                <div id="gptImage2Params" class="space-y-1 mt-3 hidden-param">
+                    <label class="text-xs font-medium" style="color: var(--text-muted);">模型版本</label>
+                    <select id="gptImage2Model" onchange="saveConfig()" class="w-full px-3 py-2 rounded-lg text-sm outline-none form-select">
+                        <option value="gpt-image-2" selected>gpt-image-2</option>
+                        <option value="gpt-image-2-vip">gpt-image-2-vip</option>
+                    </select>
+                </div>
+
+                <!-- GPT Image 2 自定义分辨率 -->
+                <div id="gptImage2CustomSize" class="space-y-2 mt-3 hidden-param">
+                    <label class="text-xs font-medium" style="color: var(--text-muted);">自定义分辨率</label>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div class="space-y-1">
+                            <label class="text-xs" style="color: var(--text-muted);">宽</label>
+                            <input type="number" id="customWidth" min="16" max="3840" step="16" value="1024"
+                                onchange="roundCustomSize(this); saveConfig()"
+                                class="w-full px-3 py-2 rounded-lg text-sm outline-none form-input">
+                        </div>
+                        <div class="space-y-1">
+                            <label class="text-xs" style="color: var(--text-muted);">高</label>
+                            <input type="number" id="customHeight" min="16" max="3840" step="16" value="1024"
+                                onchange="roundCustomSize(this); saveConfig()"
+                                class="w-full px-3 py-2 rounded-lg text-sm outline-none form-input">
+                        </div>
+                    </div>
+                    <p class="text-xs" style="color: var(--text-muted);">自动向上取整为 16 的倍数，最高 3840</p>
                 </div>
 
                 <button onclick="generateImage()" id="generateBtn"
@@ -1538,41 +1606,6 @@
             <div id="historyContainer" class="history-container custom-scrollbar">
                 <div class="text-center py-8 text-sm flex-shrink-0 w-full" style="color: var(--text-muted);">
                     暂无历史记录
-                </div>
-            </div>
-        </div>
-
-        <!-- 浮动任务按钮 -->
-        <button class="task-float-btn idle" id="taskFloatBtn" onclick="toggleTaskSidebar()" title="任务列表" style="display: flex;">0</button>
-
-        <!-- 任务侧边栏 -->
-        <div class="task-sidebar" id="taskSidebar">
-            <div class="task-sidebar-header">
-                <h2 class="text-lg font-semibold flex items-center gap-2">
-                    <svg class="w-5 h-5" style="color: var(--accent-blue);" fill="none" stroke="currentColor"
-                        viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
-                    </svg>
-                    任务列表
-                    <span id="taskCountSidebar" class="text-xs px-2 py-1 rounded"
-                        style="background: var(--bg-input); color: var(--text-muted); margin-left: 4px;">0</span>
-                </h2>
-                <div class="flex items-center gap-2">
-                    <button onclick="clearAllTasks()" class="text-xs transition-colors px-2 py-1 rounded"
-                        style="background: rgba(239, 68, 68, 0.2); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3);">
-                        清理
-                    </button>
-                    <button onclick="closeTaskSidebar()" class="task-sidebar-close" title="关闭">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                    </button>
-                </div>
-            </div>
-            <div class="task-sidebar-body" id="taskContainer">
-                <div class="text-center py-8 text-sm" style="color: var(--text-muted);">
-                    暂无任务
                 </div>
             </div>
         </div>
@@ -1755,6 +1788,41 @@
         </div>
     </div>
 
+    <!-- 浮动任务按钮 -->
+    <button class="task-float-btn idle" id="taskFloatBtn" onclick="toggleTaskSidebar()" title="任务列表" style="display: flex;">0</button>
+
+    <!-- 任务侧边栏 -->
+    <div class="task-sidebar" id="taskSidebar">
+        <div class="task-sidebar-header">
+            <h2 class="text-lg font-semibold flex items-center gap-2">
+                <svg class="w-5 h-5" style="color: var(--accent-blue);" fill="none" stroke="currentColor"
+                    viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                </svg>
+                任务列表
+                <span id="taskCountSidebar" class="text-xs px-2 py-1 rounded"
+                    style="background: var(--bg-input); color: var(--text-muted); margin-left: 4px;">0</span>
+            </h2>
+            <div class="flex items-center gap-2">
+                <button onclick="clearAllTasks()" class="text-xs transition-colors px-2 py-1 rounded"
+                    style="background: rgba(239, 68, 68, 0.2); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3);">
+                    清理
+                </button>
+                <button onclick="closeTaskSidebar()" class="task-sidebar-close" title="关闭">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+        </div>
+        <div class="task-sidebar-body" id="taskContainer">
+            <div class="text-center py-8 text-sm" style="color: var(--text-muted);">
+                暂无任务
+            </div>
+        </div>
+    </div>
+
     <script>
         // Global state
         let activeSlot = null;
@@ -1778,9 +1846,8 @@
                 requestType: 'json',
                 aspectRatioLabel: '宽高比',
                 aspectRatioOptions: [
-                    { value: '', label: '默认 (Auto)' },
-                    { value: '1:1', label: '1:1 (正方形)' },
                     { value: '16:9', label: '16:9 (宽屏)' },
+                    { value: '1:1', label: '1:1 (正方形)' },
                     { value: '9:16', label: '9:16 (手机竖屏)' },
                     { value: '4:3', label: '4:3 (横向)' },
                     { value: '3:4', label: '3:4 (纵向)' },
@@ -1793,9 +1860,8 @@
                 secondaryParamKey: 'imageSize',
                 secondaryParamLabel: '尺寸',
                 secondaryOptions: [
-                    { value: '', label: '默认 (Auto)' },
-                    { value: '1K', label: '1K' },
                     { value: '2K', label: '2K' },
+                    { value: '1K', label: '1K' },
                     { value: '4K', label: '4K' }
                 ],
                 showSecondaryParam: true,
@@ -1818,23 +1884,35 @@
                 label: 'GPT Image 2',
                 model: 'gpt-image-2',
                 requestType: 'json',
-                aspectRatioLabel: '宽高比',
+                aspectRatioLabel: '比例 (像素)',
                 aspectRatioOptions: [
-                    { value: '', label: '默认 (Auto)' },
-                    { value: '1:1', label: '1:1 (正方形)' },
-                    { value: '3:2', label: '3:2 (横向)' },
-                    { value: '2:3', label: '2:3 (纵向)' }
+                    { value: '2048x1152', label: '16:9 — 2048x1152 (2K)' },
+                    { value: '3840x2160', label: '16:9 — 3840x2160 (4K)' },
+                    { value: '2048x2048', label: '1:1 — 2048x2048 (2K)' },
+                    { value: '2880x2880', label: '1:1 — 2880x2880 (4K)' },
+                    { value: '1152x2048', label: '9:16 — 1152x2048 (2K)' },
+                    { value: '2160x3840', label: '9:16 — 2160x3840 (4K)' },
+                    { value: '2048x1360', label: '3:2 — 2048x1360 (2K)' },
+                    { value: '1360x2048', label: '2:3 — 1360x2048 (2K)' },
+                    { value: '2048x880', label: '21:9 — 2048x880 (2K)' },
+                    { value: '3840x1648', label: '21:9 — 3840x1648 (4K)' },
+                    { value: '880x2048', label: '9:21 — 880x2048 (2K)' },
+                    { value: '688x2048', label: '1:3 — 688x2048 (2K)' },
+                    { value: '2048x688', label: '3:1 — 2048x688 (2K)' },
+                    { value: '2048x1024', label: '2:1 — 2048x1024 (2K)' },
+                    { value: '3840x1920', label: '2:1 — 3840x1920 (4K)' },
+                    { value: '1024x2048', label: '1:2 — 1024x2048 (2K)' },
+                    { value: '1920x3840', label: '1:2 — 1920x3840 (4K)' },
+                    { value: 'custom', label: '自定义分辨率' }
                 ],
-                secondaryParamKey: 'size',
-                secondaryParamLabel: '尺寸',
+                secondaryParamKey: 'replyType',
+                secondaryParamLabel: '回复类型',
                 secondaryOptions: [
-                    { value: '', label: '默认 (Auto)' },
-                    { value: '1024x1024', label: '1024x1024' },
-                    { value: '1536x1024', label: '1536x1024' },
-                    { value: '1024x1536', label: '1024x1536' }
+                    { value: 'json', label: 'json' }
                 ],
                 showSecondaryParam: false,
-                promptPlaceholder: '描述你想要生成的图像内容... 例如：参考 @img1 的主体和 @img2 的配色，生成一张新图'
+                promptPlaceholder: '描述你想要生成的图像内容... 例如：参考 @img1 的主体和 @img2 的配色，生成一张新图',
+                defaultModelVariant: 'gpt-image-2'
             }
         };
         
@@ -1875,11 +1953,16 @@
         function getProviderSettings(providerId) {
             const profile = MODEL_PROFILES[providerId] || MODEL_PROFILES['nano-banana'];
             const config = {
-                aspectRatio: ''
+                aspectRatio: profile.aspectRatioOptions[0]?.value || ''
             };
-            config[profile.secondaryParamKey] = '';
+            config[profile.secondaryParamKey] = profile.secondaryOptions[0]?.value || '';
             if (profile.id === 'nano-banana') {
                 config.modelVariant = profile.defaultModelVariant;
+            }
+            if (profile.id === 'gpt-image-2') {
+                config.modelVariant = profile.defaultModelVariant;
+                config.customWidth = 1024;
+                config.customHeight = 1024;
             }
             return config;
         }
@@ -1904,14 +1987,35 @@
             if (profile.id === 'nano-banana') {
                 settings.modelVariant = document.getElementById('nanoBananaModel').value;
             }
+            if (profile.id === 'gpt-image-2') {
+                settings.modelVariant = document.getElementById('gptImage2Model').value;
+                settings.customWidth = parseInt(document.getElementById('customWidth').value) || 1024;
+                settings.customHeight = parseInt(document.getElementById('customHeight').value) || 1024;
+                if (settings.aspectRatio === 'custom') {
+                    settings.aspectRatio = `${settings.customWidth}x${settings.customHeight}`;
+                }
+            }
             return settings;
         }
 
         function applyProviderSettings(providerId, settings = {}) {
             const profile = MODEL_PROFILES[providerId] || MODEL_PROFILES['nano-banana'];
+
+            // GPT Image 2: 如果 aspectRatio 是 宽x高 格式，恢复为 custom
+            let aspectRatioValue = settings.aspectRatio || profile.aspectRatioOptions[0]?.value || '';
+            let customW = 1024, customH = 1024;
+            if (profile.id === 'gpt-image-2' && aspectRatioValue && aspectRatioValue !== 'custom') {
+                const match = aspectRatioValue.match(/^(\d+)x(\d+)$/);
+                if (match && !profile.aspectRatioOptions.some(o => o.value === aspectRatioValue)) {
+                    customW = parseInt(match[1]);
+                    customH = parseInt(match[2]);
+                    aspectRatioValue = 'custom';
+                }
+            }
+
             const normalized = {
-                aspectRatio: settings.aspectRatio || '',
-                [profile.secondaryParamKey]: settings[profile.secondaryParamKey] || ''
+                aspectRatio: aspectRatioValue,
+                [profile.secondaryParamKey]: settings[profile.secondaryParamKey] || profile.secondaryOptions[0]?.value || ''
             };
 
             document.getElementById('aspectRatioLabel').textContent = profile.aspectRatioLabel;
@@ -1921,9 +2025,16 @@
             const resolutionSelect = document.getElementById('resolution');
             buildSelectOptions(aspectRatioSelect, profile.aspectRatioOptions, normalized.aspectRatio);
             buildSelectOptions(resolutionSelect, profile.secondaryOptions, normalized[profile.secondaryParamKey]);
-            aspectRatioSelect.onchange = saveConfig;
+            aspectRatioSelect.onchange = () => { onAspectRatioChange(); saveConfig(); };
             resolutionSelect.onchange = saveConfig;
             document.getElementById('secondaryParamGroup').classList.toggle('hidden-param', !profile.showSecondaryParam);
+
+            // GPT Image 2 只有比例一个参数时，grid 改为单列让比例占满全宽
+            const paramGrid = document.getElementById('paramGrid');
+            if (paramGrid) {
+                paramGrid.classList.toggle('grid-cols-2', profile.showSecondaryParam);
+                paramGrid.classList.toggle('grid-cols-1', !profile.showSecondaryParam);
+            }
 
             // Nano Banana 专属参数显隐
             const nanoBananaParams = document.getElementById('nanoBananaParams');
@@ -1934,6 +2045,26 @@
                 const modelVariant = settings.modelVariant || profile.defaultModelVariant;
                 const modelSelect = document.getElementById('nanoBananaModel');
                 if (modelSelect) modelSelect.value = modelVariant;
+            }
+
+            // GPT Image 2 专属参数显隐
+            const gptImage2Params = document.getElementById('gptImage2Params');
+            if (gptImage2Params) {
+                gptImage2Params.classList.toggle('hidden-param', profile.id !== 'gpt-image-2');
+            }
+            const gptImage2CustomSize = document.getElementById('gptImage2CustomSize');
+            if (gptImage2CustomSize) {
+                const isCustom = profile.id === 'gpt-image-2' && aspectRatioSelect.value === 'custom';
+                gptImage2CustomSize.classList.toggle('hidden-param', !isCustom);
+            }
+            if (profile.id === 'gpt-image-2') {
+                const modelVariant = settings.modelVariant || profile.defaultModelVariant;
+                const modelSelect = document.getElementById('gptImage2Model');
+                if (modelSelect) modelSelect.value = modelVariant;
+                const wInput = document.getElementById('customWidth');
+                const hInput = document.getElementById('customHeight');
+                if (wInput) wInput.value = settings.customWidth || customW;
+                if (hInput) hInput.value = settings.customHeight || customH;
             }
 
             const promptEditor = document.getElementById('prompt');
@@ -1948,6 +2079,26 @@
                 button.classList.toggle('active', isActive);
                 button.setAttribute('aria-selected', isActive ? 'true' : 'false');
             });
+        }
+
+        function onAspectRatioChange() {
+            const profile = getActiveProfile();
+            const customSizeEl = document.getElementById('gptImage2CustomSize');
+            if (!customSizeEl || profile.id !== 'gpt-image-2') return;
+            const isCustom = document.getElementById('aspectRatio').value === 'custom';
+            customSizeEl.classList.toggle('hidden-param', !isCustom);
+        }
+
+        function roundCustomSize(input) {
+            let val = parseInt(input.value) || 16;
+            val = Math.min(val, 3840);
+            val = Math.max(val, 16);
+            const remainder = val % 16;
+            if (remainder !== 0) {
+                val = val + (16 - remainder);
+            }
+            if (val > 3840) val = 3840;
+            input.value = val;
         }
 
         function setActiveProvider(providerId, options = {}) {
@@ -3216,7 +3367,10 @@
                 '#pollInterval',
                 '#aspectRatio',
                 '#resolution',
-                '#nanoBananaModel'
+                '#nanoBananaModel',
+                '#gptImage2Model',
+                '#customWidth',
+                '#customHeight'
             ];
 
             document.querySelectorAll(selectors.join(',')).forEach(el => {
@@ -3371,7 +3525,7 @@
             const profile = MODEL_PROFILES[providerId] || MODEL_PROFILES['nano-banana'];
             
             let model = profile.model;
-            if (profile.id === 'nano-banana' && params?.modelVariant) {
+            if ((profile.id === 'nano-banana' || profile.id === 'gpt-image-2') && params?.modelVariant) {
                 model = params.modelVariant;
             }
             
@@ -3618,9 +3772,14 @@
                 webHook: '-1'
             };
 
-            // GrsAI GPT Image API 使用 size 字段传递比例
+            // GPT Image API 使用 aspectRatio 字段传递像素比例
             if (task.params?.aspectRatio) {
-                payload.size = task.params.aspectRatio;
+                payload.aspectRatio = task.params.aspectRatio;
+            }
+
+            // replyType 支持
+            if (task.params?.replyType) {
+                payload.replyType = task.params.replyType;
             }
 
             // 根据有无参考图自动切换
@@ -3876,10 +4035,260 @@
             }
         }
 
-        // 当前选中的任务ID
-        let selectedTaskId = null;
+        // 当前展开详情的任务ID（互斥，同时只能展开一个）
+        let openTaskId = null;
 
-        // 更新任务UI
+        // 状态文本映射
+        const TASK_STATUS_TEXT = {
+            'pending': '等待中',
+            'submitting': '提交中',
+            'polling': '生成中',
+            'completed': '已完成',
+            'failed': '失败'
+        };
+
+        // 格式化用时（毫秒 -> 人类可读）
+        function formatDuration(ms) {
+            if (ms < 1000) return `${ms}ms`;
+            const sec = Math.round(ms / 1000);
+            if (sec < 60) return `${sec}s`;
+            const min = Math.floor(sec / 60);
+            const remSec = sec % 60;
+            return `${min}m ${remSec}s`;
+        }
+
+        // 任务计时定时器
+        let taskTimerInterval = null;
+
+        // 构建计时文本
+        function buildTimerText(task) {
+            if (task.status === 'pending') return '';
+            if (task.endTime) {
+                return '用时 ' + formatDuration(task.endTime - task.startTime);
+            }
+            const elapsed = Date.now() - task.startTime;
+            return '已运行 ' + formatDuration(elapsed);
+        }
+
+        // 启动任务计时刷新
+        function startTaskTimer() {
+            if (taskTimerInterval) return;
+            taskTimerInterval = setInterval(() => {
+                document.querySelectorAll('.task-timer').forEach(el => {
+                    const taskId = el.dataset.taskId;
+                    const task = taskQueue.find(t => t.id === taskId);
+                    if (task && !task.endTime) {
+                        el.textContent = buildTimerText(task);
+                    }
+                });
+            }, 1000);
+        }
+
+        // 停止任务计时刷新
+        function stopTaskTimer() {
+            if (taskTimerInterval) {
+                clearInterval(taskTimerInterval);
+                taskTimerInterval = null;
+            }
+        }
+
+        // 创建任务卡片 DOM 元素
+        function createTaskElement(task) {
+            const el = document.createElement('div');
+            el.className = `task-item ${task.status}`;
+            el.dataset.taskId = task.id;
+            el.innerHTML = buildTaskInnerHTML(task);
+            return el;
+        }
+
+        // 构建任务卡片内部 HTML
+        function buildTaskInnerHTML(task) {
+            const progress = parseInt(task.progress) || 0;
+            const statusText = TASK_STATUS_TEXT[task.status] || task.status;
+            const modelLabel = escapeHtml(MODEL_PROFILES[task.providerId]?.label || task.model);
+            const isOpen = task.id === openTaskId;
+            const timerText = buildTimerText(task);
+
+            return `
+                <div class="task-summary" onclick="event.stopPropagation(); toggleTaskDetail('${task.id}')">
+                    <div class="task-detail-toggle">
+                        <div class="task-header" style="flex:1; margin-bottom:0;">
+                            <span class="task-id">${task.id.slice(-8)}</span>
+                            <span class="task-status ${task.status}">${statusText}</span>
+                        </div>
+                        <div style="display:flex; align-items:center; gap:6px;">
+                            <span class="task-timer" style="font-size:10px; color:var(--text-muted);" data-task-id="${task.id}">${timerText}</span>
+                            <svg class="task-chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="task-progress-text" style="margin-top:4px; margin-bottom: 4px;">${modelLabel}</div>
+                    <div class="task-prompt" title="${escapeHtml(task.prompt)}">${escapeHtml(task.prompt)}</div>
+                    ${task.status === 'polling' || task.status === 'submitting' ? `
+                        <div class="task-progress-bar" style="margin-top:6px;">
+                            <div class="task-progress-fill" style="width: ${progress}%"></div>
+                        </div>
+                        <div class="task-progress-text">${progress}%</div>
+                    ` : ''}
+                    ${task.status === 'failed' ? `
+                        <div class="task-progress-text" style="color: #ef4444; margin-top:4px;">${escapeHtml(task.error || '未知错误')}</div>
+                    ` : ''}
+                </div>
+                <div class="task-detail" style="display: ${isOpen ? 'block' : 'none'};">
+                    ${buildTaskDetailHTML(task)}
+                </div>
+            `;
+        }
+
+        // 构建任务详情 HTML（含调试信息）
+        function buildTaskDetailHTML(task) {
+            const params = task.params || {};
+            const paramStr = Object.entries(params).map(([k, v]) => `${k}: ${v}`).join(', ') || '无';
+            const imgCount = task.images ? task.images.length : 0;
+
+            const debugInfo = {
+                id: task.id,
+                serverTaskId: task.serverTaskId,
+                providerId: task.providerId,
+                status: task.status,
+                progress: task.progress,
+                prompt: task.prompt,
+                model: task.model,
+                params: task.params,
+                imageCount: imgCount,
+                requests: task.requestHistory || [],
+                error: task.error,
+                pollAttempts: task.pollAttempts,
+                startTime: new Date(task.startTime).toLocaleString(),
+                result: task.result ? '已返回数据' : null,
+                rawResponse: task.rawResponse || null
+            };
+            const debugJson = JSON.stringify(debugInfo, null, 2);
+
+            return `
+                <div class="task-detail-section">
+                    <div class="task-detail-section-title">提示词</div>
+                    <div class="task-detail-param">${escapeHtml(task.prompt)}</div>
+                </div>
+                <div class="task-detail-section">
+                    <div class="task-detail-section-title">参数</div>
+                    <div class="task-detail-param">${escapeHtml(paramStr)}</div>
+                </div>
+                <div class="task-detail-section">
+                    <div class="task-detail-section-title">调试信息</div>
+                    <div class="task-debug-content">${escapeHtml(debugJson)}</div>
+                </div>
+            `;
+        }
+
+        // 增量更新任务元素（只更新变化的部分，不动 DOM 结构）
+        function updateTaskElement(el, task) {
+            const prevStatus = el.dataset.status;
+            const newStatus = task.status;
+
+            // 状态变化时更新 class，终态自动记录结束时间
+            if (prevStatus !== newStatus) {
+                el.classList.remove(prevStatus);
+                el.classList.add(newStatus);
+                el.dataset.status = newStatus;
+                if ((newStatus === 'completed' || newStatus === 'failed') && !task.endTime) {
+                    task.endTime = Date.now();
+                }
+            }
+
+            const isOpen = task.id === openTaskId;
+            const wasOpen = el.classList.contains('open');
+
+            // 展开状态变化时，更新详情显示和 open class
+            if (isOpen !== wasOpen) {
+                el.classList.toggle('open', isOpen);
+                const detail = el.querySelector('.task-detail');
+                if (detail) {
+                    detail.style.display = isOpen ? 'block' : 'none';
+                }
+            }
+
+            // 如果展开了，只增量更新调试信息文本，不动 DOM 结构
+            if (isOpen) {
+                const debugEl = el.querySelector('.task-debug-content');
+                if (debugEl) {
+                    const debugInfo = {
+                        id: task.id,
+                        serverTaskId: task.serverTaskId,
+                        providerId: task.providerId,
+                        status: task.status,
+                        progress: task.progress,
+                        prompt: task.prompt,
+                        model: task.model,
+                        params: task.params,
+                        imageCount: task.images ? task.images.length : 0,
+                        requests: task.requestHistory || [],
+                        error: task.error,
+                        pollAttempts: task.pollAttempts,
+                        startTime: new Date(task.startTime).toLocaleString(),
+                        result: task.result ? '已返回数据' : null,
+                        rawResponse: task.rawResponse || null
+                    };
+                    const debugJson = JSON.stringify(debugInfo, null, 2);
+                    debugEl.textContent = debugJson;
+                }
+            }
+
+            // 更新摘要区域的动态内容
+            const statusEl = el.querySelector('.task-status');
+            if (statusEl) {
+                const newText = TASK_STATUS_TEXT[newStatus] || newStatus;
+                if (statusEl.textContent !== newText) {
+                    statusEl.textContent = newText;
+                    statusEl.className = `task-status ${newStatus}`;
+                }
+            }
+
+            const progress = parseInt(task.progress) || 0;
+            const fillEl = el.querySelector('.task-progress-fill');
+            if (fillEl) {
+                fillEl.style.width = progress + '%';
+            }
+            // 更新进度百分比文本（通过父元素结构定位）
+            const barEl = el.querySelector('.task-progress-bar');
+            if (barEl) {
+                const percentEl = barEl.nextElementSibling;
+                if (percentEl && percentEl.classList.contains('task-progress-text')) {
+                    percentEl.textContent = progress + '%';
+                }
+            }
+
+            // 更新计时文本
+            const timerEl = el.querySelector('.task-timer');
+            if (timerEl) {
+                const newTimerText = buildTimerText(task);
+                if (timerEl.textContent !== newTimerText) {
+                    timerEl.textContent = newTimerText;
+                }
+            }
+        }
+
+        // 展开/收起任务详情（互斥）
+        function toggleTaskDetail(taskId) {
+            if (openTaskId === taskId) {
+                openTaskId = null;
+            } else {
+                // 收起前一个
+                if (openTaskId) {
+                    const prevEl = document.querySelector(`.task-item[data-task-id="${openTaskId}"]`);
+                    if (prevEl) {
+                        prevEl.classList.remove('open');
+                        const detail = prevEl.querySelector('.task-detail');
+                        if (detail) detail.style.display = 'none';
+                    }
+                }
+                openTaskId = taskId;
+            }
+            updateTaskUI();
+        }
+
+        // 更新任务UI（增量更新，不重建 DOM，保持滚动位置）
         function updateTaskUI(changedTask) {
             const taskContainer = document.getElementById('taskContainer');
             const taskCountSidebar = document.getElementById('taskCountSidebar');
@@ -3889,21 +4298,12 @@
 
             const pendingCount = taskQueue.filter(t => t.status === 'pending').length;
             const runningCount = taskQueue.filter(t => t.status === 'submitting' || t.status === 'polling').length;
-            const completedCount = taskQueue.filter(t => t.status === 'completed').length;
-            const failedCount = taskQueue.filter(t => t.status === 'failed').length;
 
             // 更新按钮状态
             const btnQueueCount = document.getElementById('btnQueueCount');
             const totalActive = runningCount + pendingCount;
-            
-            if (runningCount > 0) {
-                btnText.textContent = '添加队列';
-                loader.classList.remove('hidden');
-                if (btnQueueCount) {
-                    btnQueueCount.textContent = totalActive;
-                    btnQueueCount.classList.remove('hidden');
-                }
-            } else if (pendingCount > 0) {
+
+            if (runningCount > 0 || pendingCount > 0) {
                 btnText.textContent = '添加队列';
                 loader.classList.remove('hidden');
                 if (btnQueueCount) {
@@ -3935,54 +4335,60 @@
                 taskCountSidebar.textContent = taskQueue.length;
             }
 
-            // 渲染任务列表
+            // 渲染任务列表（增量更新）
             if (taskQueue.length === 0) {
                 taskContainer.innerHTML = `
                     <div class="text-center py-8 text-sm" style="color: var(--text-muted);">
                         暂无任务
                     </div>
                 `;
-            } else {
-                taskContainer.innerHTML = taskQueue.slice().reverse().map(task => {
-                    const isSelected = task.id === selectedTaskId;
-                    const progress = parseInt(task.progress) || 0;
-                    const statusText = {
-                        'pending': '等待中',
-                        'submitting': '提交中',
-                        'polling': '生成中',
-                        'completed': '已完成',
-                        'failed': '失败'
-                    }[task.status] || task.status;
-                    
-                    return `
-                        <div class="task-item ${task.status} ${isSelected ? 'selected' : ''}" 
-                             onclick="selectTask('${task.id}')">
-                            <div class="task-header">
-                                <span class="task-id">${task.id.slice(-8)}</span>
-                                <span class="task-status ${task.status}">${statusText}</span>
-                            </div>
-                            <div class="task-progress-text" style="margin-bottom: 6px;">${escapeHtml(MODEL_PROFILES[task.providerId]?.label || task.model)}</div>
-                            <div class="task-prompt" title="${escapeHtml(task.prompt)}">${escapeHtml(task.prompt)}</div>
-                            ${task.status === 'polling' || task.status === 'submitting' ? `
-                                <div class="task-progress-bar">
-                                    <div class="task-progress-fill" style="width: ${progress}%"></div>
-                                </div>
-                                <div class="task-progress-text">${progress}%</div>
-                            ` : ''}
-                            ${task.status === 'failed' ? `
-                                <div class="task-progress-text" style="color: #ef4444;">${escapeHtml(task.error || '未知错误')}</div>
-                            ` : ''}
-                        </div>
-                    `;
-                }).join('');
+                openTaskId = null;
+                stopTaskTimer();
+                return;
             }
-            
-            // 如果有选中的任务，显示调试信息
-            if (selectedTaskId) {
-                renderTaskDebugPanel();
+
+            // 如果当前是空状态占位符，先清空
+            if (taskContainer.querySelector('.text-center.py-8')) {
+                taskContainer.innerHTML = '';
             }
-            
-            // 如果有状态变化，显示消息
+
+            // 需要的任务顺序（最新的在前）
+            const orderedTasks = taskQueue.slice().reverse();
+            const neededIds = orderedTasks.map(t => t.id);
+
+            // 获取现有 DOM 中的任务元素
+            const existingEls = Array.from(taskContainer.querySelectorAll('.task-item'));
+            const existingMap = new Map();
+            existingEls.forEach(el => {
+                const id = el.dataset.taskId;
+                if (id) existingMap.set(id, el);
+            });
+
+            // 删除不在 neededIds 中的元素
+            existingMap.forEach((el, id) => {
+                if (!neededIds.includes(id)) {
+                    el.remove();
+                    if (openTaskId === id) openTaskId = null;
+                }
+            });
+
+            // 按顺序插入/更新
+            orderedTasks.forEach((task, index) => {
+                let el = existingMap.get(task.id);
+                if (!el) {
+                    el = createTaskElement(task);
+                    el.dataset.status = task.status;
+                }
+                updateTaskElement(el, task);
+
+                // 确保位置正确
+                const currentAtIndex = taskContainer.children[index];
+                if (currentAtIndex !== el) {
+                    taskContainer.insertBefore(el, currentAtIndex || null);
+                }
+            });
+
+            // 状态变化消息
             if (changedTask) {
                 if (changedTask.status === 'completed') {
                     showMessage(`任务 ${changedTask.id.slice(-4)} 完成`, 'success');
@@ -3990,65 +4396,6 @@
                     showMessage(`任务 ${changedTask.id.slice(-4)} 失败: ${changedTask.error}`, 'error');
                 }
             }
-        }
-
-        // 选择任务
-        function selectTask(taskId) {
-            selectedTaskId = taskId;
-            updateTaskUI();
-        }
-
-        // 渲染任务调试面板
-        function renderTaskDebugPanel() {
-            const task = taskQueue.find(t => t.id === selectedTaskId);
-            if (!task) return;
-            
-            const debugInfo = {
-                id: task.id,
-                serverTaskId: task.serverTaskId,
-                providerId: task.providerId,
-                status: task.status,
-                progress: task.progress,
-                prompt: task.prompt,
-                model: task.model,
-                params: task.params,
-                imageCount: task.images.length,
-                requests: task.requestHistory || [],
-                error: task.error,
-                pollAttempts: task.pollAttempts,
-                startTime: new Date(task.startTime).toLocaleString(),
-                result: task.result ? '已返回数据' : null,
-                rawResponse: task.rawResponse || null
-            };
-            
-            // 检查是否已存在调试面板
-            let debugPanel = document.getElementById('taskDebugPanel');
-            if (!debugPanel) {
-                debugPanel = document.createElement('div');
-                debugPanel.id = 'taskDebugPanel';
-                debugPanel.className = 'task-debug-panel';
-                document.getElementById('taskContainer').parentNode.appendChild(debugPanel);
-            }
-
-            const debugJson = JSON.stringify(debugInfo, null, 2);
-            
-            debugPanel.innerHTML = `
-                <div class="task-debug-header">
-                    <span>任务调试信息</span>
-                    <button onclick="closeTaskDebugPanel()" style="background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 14px;">✕</button>
-                </div>
-                <div class="task-debug-content">${escapeHtml(debugJson)}</div>
-            `;
-        }
-
-        // 关闭任务调试面板
-        function closeTaskDebugPanel() {
-            selectedTaskId = null;
-            const debugPanel = document.getElementById('taskDebugPanel');
-            if (debugPanel) {
-                debugPanel.remove();
-            }
-            updateTaskUI();
         }
 
         // 清理所有任务
@@ -4069,12 +4416,14 @@
 	    document.getElementById('taskSidebar').classList.add('open');
 	    adjustMainContainer();
 	    updateTaskUI();
+	    startTaskTimer();
 	}
 
 	function closeTaskSidebar() {
 	    isTaskSidebarOpen = false;
 	    document.getElementById('taskSidebar').classList.remove('open');
 	    adjustMainContainer();
+	    stopTaskTimer();
 	}
 
 	// 调整主区域宽度，避免被侧边栏遮挡
@@ -4132,13 +4481,8 @@
             
             taskQueue = [];
             runningTaskCount = 0;
-            selectedTaskId = null;
-            
-            const debugPanel = document.getElementById('taskDebugPanel');
-            if (debugPanel) {
-                debugPanel.remove();
-            }
-            
+            openTaskId = null;
+
             updateTaskUI();
             showMessage('任务列表已清理', 'success');
         }
