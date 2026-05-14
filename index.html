@@ -694,27 +694,25 @@
             position: relative;
         }
 
-        .mention-btn {
-            position: absolute;
-            right: 12px;
-            top: 8px;
+        .clear-btn-inline {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
             background: var(--btn-secondary);
             border: 1px solid var(--border-input);
             color: var(--text-secondary);
-            padding: 4px 10px;
+            padding: 3px 10px;
             border-radius: 6px;
-            font-size: 13px;
+            font-size: 12px;
             cursor: pointer;
             transition: all 0.2s;
-            z-index: 10;
-            font-weight: 600;
+            font-weight: 500;
         }
 
-        .mention-btn:hover,
-        .mention-btn.active {
-            background: var(--accent-blue);
+        .clear-btn-inline:hover {
+            background: #ef4444;
             color: white;
-            border-color: var(--accent-blue);
+            border-color: #ef4444;
         }
 
         /* 设置抽屉样式 */
@@ -1865,13 +1863,21 @@
                     </div>
                 </div>
 
+                <div class="flex items-center justify-between gap-3 mb-2">
+                    <span class="text-xs font-medium" style="color: var(--text-muted);">提示词</span>
+                    <button type="button" onclick="clearPrompt()" class="clear-btn-inline" id="clearBtn"
+                        title="清空提示词" style="display: none;">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                        <span class="text-xs">清空</span>
+                    </button>
+                </div>
+
                 <div class="textarea-wrapper">
                     <div id="prompt"
-                        class="prompt-editor flex-1 px-4 py-3 rounded-lg focus:ring-2 outline-none transition-all text-sm custom-scrollbar pr-12"
+                        class="prompt-editor flex-1 px-4 py-3 rounded-lg focus:ring-2 outline-none transition-all text-sm custom-scrollbar"
                         contenteditable="true" data-placeholder="描述你想要生成的图像内容... 例如：让 @img1 的人物站在 @img2 的场景中"></div>
-
-                    <button type="button" onclick="toggleMentionPopup()" class="mention-btn" id="mentionBtn"
-                        title="插入图片引用">@</button>
 
                     <!-- 弹出式引用选择面板 -->
                     <div id="mentionPopup" class="mention-popup">
@@ -2397,6 +2403,7 @@
         const STORE_NAME = 'grsaiHistory';
         const SESSION_STORE_NAME = 'grsaiSession';
         const REFERENCE_IMAGES_STATE_KEY = 'referenceImages';
+        const TASK_QUEUE_STATE_KEY = 'taskQueue';
         const SETTINGS_DRAWER_STATE_KEY = 'grsaiNanoV2SettingsDrawerOpen';
         const CROP_TOOL_STATE_KEY = 'grsaiNanoV2CropToolOpen';
         let db = null;
@@ -2407,11 +2414,14 @@
             initDrawerStates();
             loadSavedConfig();
             setupConfigAutoSave();
+            setupPromptAutoSave();
             setupPasteListener();
             setupMentionSystem();
             initTaskSidebar();
+            updateClearButtonVisibility();
             initDB().then(async () => {
                 await loadSavedReferenceImages();
+                await loadTaskQueue();
                 loadHistory();
             });
         });
@@ -2773,6 +2783,95 @@
             }
         }
 
+        async function saveTaskQueue() {
+            if (!db) return;
+            try {
+                const serializable = [];
+                for (const t of taskQueue) {
+                    const { pollTimer, images, ...rest } = t;
+                    const imagesData = [];
+                    if (images && images.length > 0) {
+                        for (const img of images) {
+                            try {
+                                const dataUrl = await blobToBase64(img);
+                                imagesData.push({
+                                    dataUrl,
+                                    name: img.name || 'image',
+                                    type: img.type || 'image/png',
+                                    lastModified: img.lastModified || Date.now()
+                                });
+                            } catch (e) {
+                                console.error('Failed to serialize task image:', e);
+                            }
+                        }
+                    }
+                    serializable.push({ ...rest, imagesData });
+                }
+                const transaction = db.transaction([SESSION_STORE_NAME], 'readwrite');
+                const store = transaction.objectStore(SESSION_STORE_NAME);
+                store.put({
+                    key: TASK_QUEUE_STATE_KEY,
+                    tasks: serializable,
+                    taskIdCounter,
+                    timestamp: Date.now()
+                });
+            } catch (error) {
+                console.error('Failed to save task queue:', error);
+            }
+        }
+
+        async function loadTaskQueue() {
+            if (!db) return;
+            return new Promise((resolve, reject) => {
+                const transaction = db.transaction([SESSION_STORE_NAME], 'readonly');
+                const store = transaction.objectStore(SESSION_STORE_NAME);
+                const request = store.get(TASK_QUEUE_STATE_KEY);
+                request.onsuccess = async () => {
+                    try {
+                        const data = request.result;
+                        if (!data || !data.tasks || data.tasks.length === 0) {
+                            resolve();
+                            return;
+                        }
+                        taskIdCounter = data.taskIdCounter || 0;
+                        taskQueue = [];
+                        for (const savedTask of data.tasks) {
+                            const { imagesData, ...taskRest } = savedTask;
+                            const images = [];
+                            if (imagesData && imagesData.length > 0) {
+                                for (const imgData of imagesData) {
+                                    try {
+                                        const file = await dataURLToFile(imgData.dataUrl, imgData.name || 'image');
+                                        images.push(file);
+                                    } catch (e) {
+                                        console.error('Failed to restore task image:', e);
+                                    }
+                                }
+                            }
+                            const task = {
+                                ...taskRest,
+                                pollTimer: null,
+                                images
+                            };
+                            taskQueue.push(task);
+                        }
+                        updateTaskUI();
+                        for (const task of taskQueue) {
+                            if (task.status === 'pending' || task.status === 'submitting' || task.status === 'polling') {
+                                task.status = 'pending';
+                            }
+                        }
+                        processTaskQueue();
+                        resolve();
+                    } catch (error) {
+                        console.error('Failed to restore task queue:', error);
+                        resolve();
+                    }
+                };
+                request.onerror = () => reject(request.error);
+            });
+        }
+
         function addHistoryItem(imageData, prompt) {
             return new Promise((resolve, reject) => {
                 if (!db) {
@@ -3004,6 +3103,27 @@
             result += escapeHtml(promptText.slice(lastIndex));
             
             return result;
+        }
+
+        // 清空提示词
+        function clearPrompt() {
+            const promptEditor = document.getElementById('prompt');
+            if (promptEditor) {
+                promptEditor.innerHTML = '';
+                promptEditor.focus();
+                updateClearButtonVisibility();
+                saveConfig();
+            }
+        }
+
+        // 更新清空按钮的显示/隐藏
+        function updateClearButtonVisibility() {
+            const promptEditor = document.getElementById('prompt');
+            const clearBtn = document.getElementById('clearBtn');
+            if (promptEditor && clearBtn) {
+                const hasContent = promptEditor.textContent.trim().length > 0;
+                clearBtn.style.display = hasContent ? 'flex' : 'none';
+            }
         }
 
         // ==================== 复用提示词功能 ====================
@@ -3275,7 +3395,6 @@
 
         function openMentionPopup(keyword = '') {
             const popup = document.getElementById('mentionPopup');
-            const btn = document.getElementById('mentionBtn');
             const list = document.getElementById('mentionPopupList');
             const editor = document.getElementById('prompt');
 
@@ -3291,7 +3410,6 @@
             positionPopup();
 
             popup.classList.add('active');
-            btn.classList.add('active');
             isMentionPopupOpen = true;
 
             editor.focus();
@@ -3388,10 +3506,8 @@
 
         function closeMentionPopup() {
             const popup = document.getElementById('mentionPopup');
-            const btn = document.getElementById('mentionBtn');
 
             popup.classList.remove('active');
-            btn.classList.remove('active');
             isMentionPopupOpen = false;
             editingChip = null;
             selectedIndex = -1;
@@ -3504,10 +3620,9 @@
 
             document.addEventListener('click', function (e) {
                 const popup = document.getElementById('mentionPopup');
-                const btn = document.getElementById('mentionBtn');
                 const editor = document.getElementById('prompt');
 
-                if (!popup.contains(e.target) && e.target !== btn && e.target !== editor && !e.target.closest('.mention-chip')) {
+                if (!popup.contains(e.target) && e.target !== editor && !e.target.closest('.mention-chip')) {
                     closeMentionPopup();
                 }
             });
@@ -3862,6 +3977,19 @@
             });
         }
 
+        function setupPromptAutoSave() {
+            const promptEditor = document.getElementById('prompt');
+            if (promptEditor) {
+                promptEditor.addEventListener('blur', () => {
+                    saveConfig();
+                });
+                promptEditor.addEventListener('input', () => {
+                    saveConfig();
+                    updateClearButtonVisibility();
+                });
+            }
+        }
+
         async function resetConfig() {
             if (!confirm('确定要恢复默认配置吗？当前所有设置将被重置。')) return;
             localStorage.removeItem('grsaiNanoV2Config');
@@ -3873,8 +4001,13 @@
             localStorage.removeItem(CROP_TOOL_STATE_KEY);
             try {
                 await clearSavedReferenceImages();
+                if (db) {
+                    const transaction = db.transaction([SESSION_STORE_NAME], 'readwrite');
+                    const store = transaction.objectStore(SESSION_STORE_NAME);
+                    store.delete(TASK_QUEUE_STATE_KEY);
+                }
             } catch (error) {
-                console.error('Failed to clear saved reference images:', error);
+                console.error('Failed to clear saved data:', error);
             }
             location.reload();
         }
@@ -4036,6 +4169,7 @@
             };
             
             taskQueue.push(task);
+            saveTaskQueue().catch(() => {});
             processTaskQueue();
             return localTaskId;
         }
@@ -4673,7 +4807,6 @@
             const prevStatus = el.dataset.status;
             const newStatus = task.status;
 
-            // 状态变化时更新 class，终态自动记录结束时间
             if (prevStatus !== newStatus) {
                 el.classList.remove(prevStatus);
                 el.classList.add(newStatus);
@@ -4681,6 +4814,7 @@
                 if ((newStatus === 'completed' || newStatus === 'failed') && !task.endTime) {
                     task.endTime = Date.now();
                 }
+                saveTaskQueue().catch(() => {});
             }
 
             const isOpen = task.id === openTaskId;
@@ -4956,7 +5090,6 @@
         function clearAllTasks() {
             if (taskQueue.length === 0) return;
             
-            // 停止所有轮询定时器
             taskQueue.forEach(task => {
                 if (task.pollTimer) {
                     clearInterval(task.pollTimer);
@@ -4968,6 +5101,11 @@
             openTaskId = null;
 
             updateTaskUI();
+            if (db) {
+                const transaction = db.transaction([SESSION_STORE_NAME], 'readwrite');
+                const store = transaction.objectStore(SESSION_STORE_NAME);
+                store.delete(TASK_QUEUE_STATE_KEY);
+            }
             showMessage('任务列表已清理', 'success');
         }
 
