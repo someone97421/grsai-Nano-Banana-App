@@ -1886,7 +1886,7 @@
                 </div>
 
                 <!-- 生图参数：按模型切换 -->
-                <div class="grid grid-cols-2 gap-3 mt-4" id="paramGrid">
+                <div class="grid grid-cols-3 gap-3 mt-4" id="paramGrid">
                     <div class="space-y-1">
                         <label class="text-xs font-medium" style="color: var(--text-muted);" id="aspectRatioLabel">宽高比</label>
                         <select id="aspectRatio" class="w-full px-3 py-2 rounded-lg text-sm outline-none form-select"></select>
@@ -1895,30 +1895,28 @@
                         <label class="text-xs font-medium" style="color: var(--text-muted);" id="secondaryParamLabel">分辨率</label>
                         <select id="resolution" class="w-full px-3 py-2 rounded-lg text-sm outline-none form-select"></select>
                     </div>
-                </div>
-
-                <!-- Nano Banana 专属参数 -->
-                <div id="nanoBananaParams" class="space-y-1 mt-3">
-                    <label class="text-xs font-medium" style="color: var(--text-muted);">模型版本</label>
-                    <select id="nanoBananaModel" onchange="saveConfig()" class="w-full px-3 py-2 rounded-lg text-sm outline-none form-select">
-                        <option value="nano-banana-fast">Nano Banana Fast</option>
-                        <option value="nano-banana">Nano Banana</option>
-                        <option value="nano-banana-pro">Nano Banana Pro</option>
-                        <option value="nano-banana-pro-vt">Nano Banana Pro VT</option>
-                        <option value="nano-banana-pro-cl">Nano Banana Pro CL</option>
-                        <option value="nano-banana-2" selected>Nano Banana 2</option>
-                        <option value="nano-banana-2-cl">Nano Banana 2 CL</option>
-                        <option value="nano-banana-2-cl-4k">Nano Banana 2 CL 4K</option>
-                    </select>
-                </div>
-
-                <!-- GPT Image 2 专属参数 -->
-                <div id="gptImage2Params" class="space-y-1 mt-3 hidden-param">
-                    <label class="text-xs font-medium" style="color: var(--text-muted);">模型版本</label>
-                    <select id="gptImage2Model" onchange="saveConfig()" class="w-full px-3 py-2 rounded-lg text-sm outline-none form-select">
-                        <option value="gpt-image-2" selected>gpt-image-2</option>
-                        <option value="gpt-image-2-vip">gpt-image-2-vip</option>
-                    </select>
+                    <!-- Nano Banana 模型版本 -->
+                    <div id="nanoBananaParams" class="space-y-1">
+                        <label class="text-xs font-medium" style="color: var(--text-muted);">模型版本</label>
+                        <select id="nanoBananaModel" onchange="saveConfig()" class="w-full px-3 py-2 rounded-lg text-sm outline-none form-select">
+                            <option value="nano-banana-fast">Nano Banana Fast</option>
+                            <option value="nano-banana">Nano Banana</option>
+                            <option value="nano-banana-pro">Nano Banana Pro</option>
+                            <option value="nano-banana-pro-vt">Nano Banana Pro VT</option>
+                            <option value="nano-banana-pro-cl">Nano Banana Pro CL</option>
+                            <option value="nano-banana-2" selected>Nano Banana 2</option>
+                            <option value="nano-banana-2-cl">Nano Banana 2 CL</option>
+                            <option value="nano-banana-2-cl-4k">Nano Banana 2 CL 4K</option>
+                        </select>
+                    </div>
+                    <!-- GPT Image 2 模型版本 -->
+                    <div id="gptImage2Params" class="space-y-1 hidden-param">
+                        <label class="text-xs font-medium" style="color: var(--text-muted);">模型版本</label>
+                        <select id="gptImage2Model" onchange="saveConfig()" class="w-full px-3 py-2 rounded-lg text-sm outline-none form-select">
+                            <option value="gpt-image-2" selected>gpt-image-2</option>
+                            <option value="gpt-image-2-vip">gpt-image-2-vip</option>
+                        </select>
+                    </div>
                 </div>
 
                 <!-- GPT Image 2 自定义分辨率 -->
@@ -2501,13 +2499,6 @@
             resolutionSelect.onchange = saveConfig;
             document.getElementById('secondaryParamGroup').classList.toggle('hidden-param', !profile.showSecondaryParam);
 
-            // GPT Image 2 只有比例一个参数时，grid 改为单列让比例占满全宽
-            const paramGrid = document.getElementById('paramGrid');
-            if (paramGrid) {
-                paramGrid.classList.toggle('grid-cols-2', profile.showSecondaryParam);
-                paramGrid.classList.toggle('grid-cols-1', !profile.showSecondaryParam);
-            }
-
             // Nano Banana 专属参数显隐
             const nanoBananaParams = document.getElementById('nanoBananaParams');
             if (nanoBananaParams) {
@@ -2542,6 +2533,13 @@
             const promptEditor = document.getElementById('prompt');
             if (promptEditor) {
                 promptEditor.dataset.placeholder = profile.promptPlaceholder;
+            }
+
+            // 动态调整参数网格列数
+            const paramGrid = document.getElementById('paramGrid');
+            if (paramGrid) {
+                const visibleChildren = Array.from(paramGrid.children).filter(child => !child.classList.contains('hidden-param')).length;
+                paramGrid.style.gridTemplateColumns = `repeat(${Math.max(visibleChildren, 1)}, minmax(0, 1fr))`;
             }
 
             Object.values(MODEL_PROFILES).forEach(item => {
